@@ -74,40 +74,11 @@ def run_whisper_transcription(input_file: Path, use_gpu: bool = False):
         except subprocess.CalledProcessError as e:
             print(f"Error transcribing {input_file}: {e}")
 
-def transcribe_files_in_threads(audio_files: list[Path]):
-    """
-    Process a list of audio files in two threads, each using different whisper.cpp configurations.
-    """
-    mid_index = len(audio_files) // 2
-    random.shuffle(audio_files)
-    thread1_files = audio_files[:mid_index]
-    thread2_files = audio_files[mid_index:]    
 
-    progress_bar1 = tqdm(total=len(thread1_files), desc="Thread 1 Progress", position=0, leave=True)
-    progress_bar2 = tqdm(total=len(thread2_files), desc="Thread 2 Progress", position=1, leave=True)
-
-    def transcribe_thread(files, use_gpu, progress_bar):
-        for file in files:
-            processed_file = process_audio(file)
-            run_whisper_transcription(processed_file, use_gpu=use_gpu)
-            progress_bar.update(1)
-
-    # Start two threads: one with GPU and the other without GPU
-    thread1 = threading.Thread(target=transcribe_thread, args=(thread1_files, False, progress_bar1))
-    thread2 = threading.Thread(target=transcribe_thread, args=(thread2_files, True, progress_bar2))
-
-    thread1.start()
-    thread2.start()
-    thread1.join()
-    thread2.join()
-
-    # Close the progress bars
-    progress_bar1.close()
-    progress_bar2.close()
-
-# time ./main -t 6 -l pt -m models/ggml-large-v3-turbo.bin -f sermon.wav --no-gpu
-# time ./main -l pt -m models/ggml-large-v3-turbo.bin -f sermon.wav 
-
+# using only one gpu and fine I don't care about the time it will take
 if __name__ == "__main__":
     mp3_folder = data_folder / 'mp3'
-    transcribe_files_in_threads(list(mp3_folder.glob("*.mp3")))
+    mp3s = list(mp3_folder.glob("*.mp3"))    
+    for file in tqdm(mp3s):
+        processed_file = process_audio(file)
+        run_whisper_transcription(processed_file, use_gpu=True)
