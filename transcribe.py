@@ -31,7 +31,8 @@ def process_audio(input_file: Path):
             str(output_file)
         ]
         try:
-            subprocess.run(ffmpeg_command, check=True)
+            subprocess.run(ffmpeg_command, check=True,     
+                           stdout=subprocess.DEVNULL,  stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             print(f"Error processing {input_file}: {e}", file=sys.stderr, flush=True)    
 
@@ -45,7 +46,8 @@ def process_audio(input_file: Path):
             str(wav_output_file)
         ]
         try:
-            subprocess.run(ffmpeg_wav_command, check=True)
+            subprocess.run(ffmpeg_wav_command, check=True, 
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             print(f"Error converting {output_file} to WAV: {e}", file=sys.stderr, flush=True)
     return wav_output_file
@@ -70,7 +72,8 @@ def run_whisper_transcription(input_file: Path, use_gpu: bool = False):
             whisper_command.remove("-ng")  # Remove - to enable GPU mode    
         try:
             with open(output_path, "w") as f:
-                subprocess.run(whisper_command, stdout=f, check=True)
+                subprocess.run(whisper_command, stdout=f, check=True, 
+                    stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             print(f"Error transcribing {input_file}: {e}")
 
