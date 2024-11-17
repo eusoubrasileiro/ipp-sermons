@@ -2,7 +2,7 @@
 # this downloads all tracks from that user to the path specified
 # -a download all
 # -c skip and continue those already downloaded 
-# scdl -l https://soundcloud.com/ipperegrinos -a -c --path /home/andre/music/ipperegrinos
+# scdl -l https://soundcloud.com/ipperegrinos -a -c --no-playlist-folder
 import subprocess
 import threading
 from pathlib import Path
