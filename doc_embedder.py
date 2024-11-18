@@ -2,19 +2,15 @@ import json
 import numpy as np
 from pathlib import Path
 from haystack import Document
-from haystack.components.writers import DocumentWriter
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack.components.preprocessors.document_splitter import DocumentSplitter
-from haystack import Pipeline
-from haystack.utils import ComponentDevice
-from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.utils import ComponentDevice
 from tqdm import tqdm 
 import zlib
 
 # Configuration
 ROOT_PATH = Path("/mnt/shared/ipp/") 
-DOCS_PATH = ROOT_PATH / "text" 
+DOCS_PATH = ROOT_PATH / "text_clean"
 OUTPUT_DOC_DIR = ROOT_PATH / "haystack/docs"
 OUTPUT_EMBED_DIR = ROOT_PATH / "haystack/embeddings/"
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" # faster: "sentence-transformers/all-MiniLM-L6-v2"
