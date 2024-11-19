@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sermons Search</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div>
+        <h1>Hybrid Search Semantic+Keyword Search</h1>
+        <input type="text" id="query" placeholder="Enter your query">
+        <button id="search">Search</button>
+    </div>
+    <div id="results"></div>
+    <script>
+    document.getElementById("search").addEventListener("click", async () => {
+        const query = document.getElementById("query").value;
+        const response = await fetch("/query", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ query }),
+        });
+        const data = await response.json();
+        const resultsDiv = document.getElementById("results");
+        resultsDiv.innerHTML = "";
+        data.results.forEach((result) => {
+            const div = document.createElement("div");
+            div.innerHTML = `<h2>${result.title}</h2><p>${result.content}</p><small>Score: ${result.score}</small>`;
+            resultsDiv.appendChild(div);
+        });
+    });
+    </script>
+</body>
+</html>

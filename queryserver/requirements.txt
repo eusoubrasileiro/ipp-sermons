@@ -1,0 +1,6 @@
+haystack-ai
+aiohttp
+numpy
+tqdm
+sentence-transformers
+accelerate
