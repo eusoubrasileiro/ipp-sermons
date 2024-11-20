@@ -25,6 +25,7 @@ document_joiner = DocumentJoiner(join_mode="reciprocal_rank_fusion") # Adjust we
 #join_mode="distribution_based_rank_fusion" == reciprocal_rank_fusion == 
 #document_joiner = DocumentJoiner(weights=[0.3, 0.7]) # Adjust weights
 ranker = TransformersSimilarityRanker(model="BAAI/bge-reranker-base")
+ranker.top_k = 25
 
 pipeline = Pipeline()
 pipeline.add_component("text_embedder", text_embedder)

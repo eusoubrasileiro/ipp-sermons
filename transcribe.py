@@ -3,15 +3,14 @@
 # -a download all
 # -c skip and continue those already downloaded 
 # scdl -l https://soundcloud.com/ipperegrinos -a -c --no-playlist-folder
+# use tmux and -o (offset) parameter to split the download between multiple scdl instances
 import subprocess
-import threading
 from pathlib import Path
 from tqdm import tqdm
 import sys 
-import random 
 
 data_folder = Path('/mnt/shared/ipp')
-whispercpp_path = Path("/home/andre/whisper.cpp/")
+whispercpp_path = Path("/home/andre/whisper.cpp")
 
 def process_audio(input_file: Path):
     """
@@ -80,7 +79,7 @@ def run_whisper_transcription(input_file: Path, use_gpu: bool = False):
 
 # using only one gpu and fine I don't care about the time it will take
 if __name__ == "__main__":
-    mp3_folder = data_folder / 'mp3'
+    mp3_folder = data_folder / 'mp3_raw'
     mp3s = list(mp3_folder.glob("*.mp3"))    
     for file in tqdm(mp3s):
         processed_file = process_audio(file)
