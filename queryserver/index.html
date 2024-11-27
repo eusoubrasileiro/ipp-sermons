@@ -28,7 +28,18 @@
         resultsDiv.innerHTML = "";
         data.results.forEach((result) => {
             const div = document.createElement("div");
-            div.innerHTML = `<h2>${result.title}</h2><p>${result.content}</p><small>Score: ${result.score}</small>`;
+            div.innerHTML = `
+                <h2>${result.title}</h2>
+                <h4>
+                <a href="${result.spot_url}" target="_blank">Spotify</a> 
+                <a href="${result.sdc_url}" target="_blank">SoundCloud</a>
+                </h4>
+                <p>${result.content}</p>
+                <small>Score: ${result.score}</small><br>
+                <small>Pregador: ${result.artist}</small><br>
+                <small>Duração: ${result.duration} minutes</small><br>
+                <small>Sentences per minute: ${result.sent_min}</small><br>                
+            `;
             resultsDiv.appendChild(div);
         });
     });

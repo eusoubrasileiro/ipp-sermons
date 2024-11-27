@@ -6,22 +6,20 @@ from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from tqdm import tqdm
 
-# Configuration
-ROOT_PATH = Path("/mnt/shared/ipp/")
-OUTPUT_DOC_DIR = ROOT_PATH / "haystack/docs"
-OUTPUT_EMBED_DIR = ROOT_PATH / "haystack/embeddings/"
-
-def load_documents_and_embeddings(verbose=False):
+def load_documents_and_embeddings(root_data_path : Path, verbose=False) -> InMemoryDocumentStore:
     """
-    Load metadata and embeddings from disk and recreate documents for the InMemoryDocumentStore.
+    Load metadata and embeddings from disk and recreate documents 
+    returning a InMemoryDocumentStore.
     """
+    metadata_path = root_data_path / "haystack/docs"
+    embed_path = root_data_path / "haystack/embeddings"
     # Initialize an empty document store
     document_store = InMemoryDocumentStore()
     if verbose:
         print("Reconstructing the InMemoryDocumentStore...")
 
-    for textnmeta_file in tqdm(list(OUTPUT_DOC_DIR.glob("*.meta"))):
-        embedings_file = OUTPUT_EMBED_DIR / f"{textnmeta_file.stem}.npz"
+    for textnmeta_file in tqdm(list(metadata_path.glob("*.meta"))):
+        embedings_file = embed_path / f"{textnmeta_file.stem}.npz"
         if not embedings_file.exists():
             print(f"Warning: Embeddings file missing for {textnmeta_file}. Skipping...")
             continue
