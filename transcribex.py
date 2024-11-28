@@ -6,10 +6,15 @@
 # use tmux and -o (offset) parameter to split the download between multiple scdl instances
 import subprocess
 from pathlib import Path
+from typing import List
 from tqdm import tqdm
 import sys 
 import argparse
-import threading
+import subprocess
+from pathlib import Path
+from tqdm import tqdm
+import argparse
+
 
 def process_audio(input_file: Path, data_folder: Path):
     """
@@ -37,33 +42,17 @@ def process_audio(input_file: Path, data_folder: Path):
     return wav_file
 
 
-def run_whisper_transcription(input_file: Path, whispercpp_path: Path, data_folder: Path, 
-                              use_gpu: bool = False):
-    """
-    Run whisper.cpp transcription on the specified audio file, optionally with GPU support.
-    """
-    text_folder = data_folder / "text"
-    txt_file =  text_folder / (input_file.stem + ".txt")
-    if not text_folder.exists():
-        text_folder.mkdir()
-    if not txt_file.exists():
-        whisper_command = [
-            f"{str(whispercpp_path/'main')}",
-            "-t", "4",
-            "-l", "pt",
-            "-m", f"{str(whispercpp_path/'models/ggml-large-v3-turbo.bin')}",
-            "-f", str(input_file),
-            "-np", # No printings
-            "-ng", # Disable GPU by default
+def transcribe_audio_subprocess(audio_files: List[Path], script_path : Path, output_path: Path, offset=0):
+    for file in tqdm(audio_files[offset:]):
+        cmd = [
+            "python", script_path.absolute(),
+            "--audio-file", str(file.absolute()),
+            "--output-path", str(output_path.absolute())
         ]
-        if use_gpu:
-            whisper_command.remove("-ng")  # Remove - to enable GPU mode    
         try:
-            with open(txt_file, "w") as f:
-                subprocess.run(whisper_command, stdout=f, check=True,
-                              stderr=subprocess.DEVNULL)
+            subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error transcribing {input_file}: {e}")
+            print(f"Error in transcription subprocess for {file}: {e}")
 
 
 # using only one gpu and fine I don't care about the time it will take
@@ -72,35 +61,34 @@ def run_whisper_transcription(input_file: Path, whispercpp_path: Path, data_fold
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="""
-                                     Preprocess audio mp3s files and transcribe using whisper.cpp
+                                     Preprocess audio mp3s files and transcribe using whisperx
                                      The intended usage is audio preprocessing first and then transcribing.
                                      That's due preprocessing with ffmpeg be very CPU intensive only
                                      and transcribing being GPU intensive only. Hence they can run separated.
                                      """)
-    parser.add_argument("-w", "--whispercpp-path", help="whisper.cpp path for main compiled binary")
     parser.add_argument("-mp3", "--mp3s-path", default=".", help="path from where mp3's will be read")
     parser.add_argument("-wav", "--wavs-path", default=".", help="path from where wav's will be read")
     parser.add_argument("-out", "--output-root-path", help="root path where output 'wav' and 'text' and files will be created")
     parser.add_argument("-o", "--offset", type=int, default=0, help="start offset: number of mp3/wav files to skip to start wav convertion or transcribe")  
     parser.add_argument("-t", "--transcribe", default=False, action="store_true", help="whether to transcribe")  
-    parser.add_argument("-a", "--audio-wav", default=False, action="store_true", help="whether to preprocess audio and convert to wav")  
-    parser.add_argument("-ng", "--no-gpu", default=False, action="store_true", help="force whisper.cpp not use gpu")  
+    parser.add_argument("-a", "--audio-wav", default=False, action="store_true", help="whether to preprocess audio and convert to wav")      
 
-    args = parser.parse_args()
-    whisper_path = Path(args.whispercpp_path)
-    root_path = Path(args.output_root_path) 
-    mp3s = list(Path(args.mp3s_path).glob("*.mp3"))        
-    wavs = list(Path(args.wavs_path).glob("*.wav"))  
+    args = parser.parse_args()    
+    root_path = Path(args.output_root_path)           
     def preprocess_audio():
+        mp3s = list(Path(args.mp3s_path).glob("*.mp3"))  
         for file in tqdm(mp3s[args.offset::]):
             process_audio(file, root_path)
-    def transcribe_audio(use_gpu=True):                                
-        for file in tqdm(wavs[args.offset::]):
-            run_whisper_transcription(file, whisper_path, root_path, use_gpu)
+
     if args.audio_wav:
-        threading.Thread(target=preprocess_audio).start()
+       preprocess_audio()
     else:
         if args.transcribe:
-            threading.Thread(target=transcribe_audio, args=(not args.no_gpu,)).start()
+            wavs = list(Path(args.wavs_path).glob("*.wav")) 
+            transcribe_audio_subprocess(wavs,
+                                        Path(__file__).resolve().parent / "transcribex_worker.py", 
+                                        Path(args.output_root_path).absolute(), 
+                                        args.offset)
 
 
+# python3 transcribex.py -wav /mnt/Data/ipp-sermons/wav -out /mnt/Data/ipp-sermons/ -t
