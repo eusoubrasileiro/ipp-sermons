@@ -1,5 +1,5 @@
 import json
-import zlib
+import gzip
 import numpy as np
 from pathlib import Path
 from haystack import Document
@@ -18,14 +18,14 @@ def load_documents_and_embeddings(root_data_path : Path, verbose=False) -> InMem
     if verbose:
         print("Reconstructing the InMemoryDocumentStore...")
 
-    for textnmeta_file in tqdm(list(metadata_path.glob("*.meta"))):
+    for textnmeta_file in tqdm(list(metadata_path.glob("*.gz"))):
         embedings_file = embed_path / f"{textnmeta_file.stem}.npz"
         if not embedings_file.exists():
             print(f"Warning: Embeddings file missing for {textnmeta_file}. Skipping...")
             continue
         with textnmeta_file.open("rb") as f: # Load metadata
             compressed_metadata = f.read()
-            metadata = json.loads(zlib.decompress(compressed_metadata).decode("utf-8"))
+            metadata = json.loads(gzip.decompress(compressed_metadata).decode("utf-8"))
         embeddings_data = np.load(embedings_file) # Load embeddings
         embeddings = embeddings_data["embeddings"]
         # Ensure the counts match
