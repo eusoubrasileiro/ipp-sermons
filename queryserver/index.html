@@ -1,48 +1,161 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sermons Search</title>
-    <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mensagens - Igreja Presbiteriana Peregrinos</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f9f9f9;
+        color: #333;
+    }
+    header {
+        background-color: blue;
+        color: #fff;
+        padding: 20px;
+        text-align: center;
+    }
+    header h1 {
+        margin: 0;
+        font-size: 1.8em;
+    }
+    header p {
+        margin: 5px 0 0;
+        font-size: 0.9em;
+    }
+    main {
+        padding: 20px;
+    }
+    .search-container {
+        text-align: center;
+        margin: 20px 0;
+    }
+    .search-container input {
+        width: 80%;
+        max-width: 500px;
+        padding: 10px;
+        font-size: 1.1em;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    .search-container button {
+        padding: 10px 20px;
+        font-size: 1.1em;
+        color: #fff;
+        background-color: blue;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .search-container button:hover {
+        background-color: #4500b5;
+    }
+    #results {
+        margin-top: 20px;
+    }
+    .result-item {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        padding: 15px;
+        margin-bottom: 15px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .result-item h2 {
+        margin: 0;
+        font-size: 1.2em;
+        color: blue;
+    }
+    .result-item h4 {
+        margin: 10px 0;
+        font-size: 0.9em;
+    }
+    .result-item h4 a {
+        margin-right: 10px;
+        text-decoration: none;
+        color: blue;
+    }
+    .result-item h4 a:hover {
+        color: #4500b5;
+    }
+    .result-item small {
+        display: block;
+        color: #666;
+        margin-top: 5px;
+    }
+    footer {
+        text-align: center;
+        padding: 10px;
+        background-color: blue;
+        color: #fff;
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+    }
+    @media (max-width: 768px) {
+        .search-container input {
+            width: 90%;
+        }
+    }
+</style>
 </head>
 <body>
-    <div>
-        <h1>Hybrid Search Semantic+Keyword Search</h1>
-        <input type="text" id="query" placeholder="Enter your query">
-        <button id="search">Search</button>
+
+<header>
+    <h1>Busca de Mensagens da Igreja Presbiteriana Peregrinos</h1>
+    <p>Encontre uma pregação para escutar baseado nos trechos mais relevantes da mensagen.</p>
+</header>
+
+<main>
+    <div class="search-container">
+        <p>Use frases completas para melhores resultados. As mensagens são analisadas por palavras-chave e significado.</p>
+        <input type="text" id="query" placeholder="Digite sua frase ou pergunta aqui...">
+        <button id="search">Buscar</button>
     </div>
     <div id="results"></div>
-    <script>
-    document.getElementById("search").addEventListener("click", async () => {
-        const query = document.getElementById("query").value;
-        const response = await fetch("/query", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ query }),
-        });
-        const data = await response.json();
-        const resultsDiv = document.getElementById("results");
-        resultsDiv.innerHTML = "";
-        data.results.forEach((result) => {
-            const div = document.createElement("div");
-            div.innerHTML = `
-                <h2>${result.title}</h2>
-                <h4>
-                <a href="${result.spot_url}" target="_blank">Spotify</a> 
-                <a href="${result.sdc_url}" target="_blank">SoundCloud</a>
-                </h4>
-                <p>${result.content}</p>
-                <small>Score: ${result.score}</small><br>
-                <small>Pregador: ${result.artist}</small><br>
-                <small>Duração: ${result.duration} minutes</small><br>
-                <small>Sentences per minute: ${result.sent_min}</small><br>                
-            `;
-            resultsDiv.appendChild(div);
-        });
+</main>
+
+<footer>
+    &copy; 2024 - Igreja - Todos os direitos reservados.
+</footer>
+
+<script>
+document.getElementById("search").addEventListener("click", async () => {
+    const query = document.getElementById("query").value;
+    const response = await fetch("/query", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
     });
-    </script>
+    const data = await response.json();
+    const resultsDiv = document.getElementById("results");
+    resultsDiv.innerHTML = "";
+    data.results.forEach((result) => {
+        const div = document.createElement("div");
+        div.className = "result-item";
+        div.innerHTML = `
+            <h2>${result.title}</h2>
+            <h4>
+                <a href="${result.spot_url}" target="_blank"><i class="fab fa-spotify"></i> Spotify</a>
+                <a href="${result.sdc_url}" target="_blank"><i class="fab fa-soundcloud"></i> SoundCloud</a>
+            </h4>
+            <p>${result.content}</p>
+            <small>Score: ${result.score}</small>
+            <small>Pregador: ${result.artist}</small>
+            <small>Duração: ${result.duration} minutos</small>
+            <small>Sentenças por minuto: ${result.sent_min}</small>
+        `;
+        resultsDiv.appendChild(div);
+    });
+});
+</script>
+
 </body>
 </html>

@@ -6,17 +6,7 @@ import spacy
 import pandas as pd # for reading duration times 
 
 nlp = spacy.load("pt_core_news_lg")
-
-# sentences = [sent.text.strip() for sent in nlp(transcript_text).sents]
-language_tool = language_tool_python.LanguageTool('pt-BR')
-language_tool.enabled_rules_only = True
-language_tool.enabled_rules = [
-        "UPPERCASE_AFTER_COMMA",
-        "UPPERCASE_SENTENCE_START",
-        "VERB_COMMA_CONJUNCTION",
-        "ALTERNATIVE_CONJUNCTIONS_COMMA",
-        "PORTUGUESE_WORD_REPEAT_RULE"
-    ]
+language_tool = None 
 
 def recursive_correct(text):
     ncorrections = 0            
@@ -140,35 +130,47 @@ def clean_transcript(path, save=False, verbose=False):
     return corrected_text
         
 
-workpath = pathlib.Path('/mnt/shared/ipp')  
-metadata = pd.read_csv(workpath / 'metadata.txt')
-# metadata.loc[:, 'grammar_score'] = None
-# metadata.loc[:, 'short_score'] = None
-# metadata.loc[:, 'repetition_score'] = None
-metadata.loc[:, 'sentences_min'] = None
-metadata.loc[:, 'sentences'] = None
-
-files = list((workpath / 'text').glob('*.txt'))
-for file in tqdm(files, desc="Processing Files", position=0):
-
-    text = clean_transcript(file)
-    output = workpath / 'text_clean' / file.name.replace('.txt', '.txt')
-    row = metadata.query(f"'{file.stem}' in sdcl_file_name")
-    duration_mins = row.duration.values.astype(float)[0]*0.001/60.  
-    # Process and evaluate
-    # corrected_text, grammar_score, short_score, repetition_score, total_sentences = process_and_evaluate_transcript(text)
-    # metadata.loc[row.index, 'grammar_score'] = grammar_score
-    # metadata.loc[row.index, 'short_score'] = short_score
-    # metadata.loc[row.index, 'repetition_score'] = repetition_score
-    total_sentences = count_sent(text)
-    metadata.loc[row.index, 'sentences'] = total_sentences
-    metadata.loc[row.index, 'sentences_min'] = total_sentences/duration_mins    
-    #print(file.stem)
-    corrected_text = clean_transcript(file, verbose=True)        
-    with output.open("w") as f:
-        f.write('\n'.join(clean_sentences(corrected_text, return_list=True))) # better to QC
+if __name__ == "__main__":    
     
-metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata.txt').absolute(), index=False)
+    language_tool = language_tool_python.LanguageTool('pt-BR')
+    language_tool.enabled_rules_only = True
+    language_tool.enabled_rules = [
+            "UPPERCASE_AFTER_COMMA",
+            "UPPERCASE_SENTENCE_START",
+            "VERB_COMMA_CONJUNCTION",
+            "ALTERNATIVE_CONJUNCTIONS_COMMA",
+            "PORTUGUESE_WORD_REPEAT_RULE"
+        ]
+
+    workpath = pathlib.Path('/mnt/shared/ipp')  
+    metadata = pd.read_csv(workpath / 'metadata.txt')
+    # metadata.loc[:, 'grammar_score'] = None
+    # metadata.loc[:, 'short_score'] = None
+    # metadata.loc[:, 'repetition_score'] = None
+    metadata.loc[:, 'sentences_min'] = None
+    metadata.loc[:, 'sentences'] = None
+
+    files = list((workpath / 'text').glob('*.txt'))
+    for file in tqdm(files, desc="Processing Files", position=0):
+
+        text = clean_transcript(file)
+        output = workpath / 'text_clean' / file.name.replace('.txt', '.txt')
+        row = metadata.query(f"'{file.stem}' in sdcl_file_name")
+        duration_mins = row.duration.values.astype(float)[0]*0.001/60.  
+        # Process and evaluate
+        # corrected_text, grammar_score, short_score, repetition_score, total_sentences = process_and_evaluate_transcript(text)
+        # metadata.loc[row.index, 'grammar_score'] = grammar_score
+        # metadata.loc[row.index, 'short_score'] = short_score
+        # metadata.loc[row.index, 'repetition_score'] = repetition_score
+        total_sentences = count_sent(text)
+        metadata.loc[row.index, 'sentences'] = total_sentences
+        metadata.loc[row.index, 'sentences_min'] = total_sentences/duration_mins    
+        #print(file.stem)
+        corrected_text = clean_transcript(file, verbose=True)        
+        with output.open("w") as f:
+            f.write('\n'.join(clean_sentences(corrected_text, return_list=True))) # better to QC
+        
+    metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata.txt').absolute(), index=False)
 
      
 

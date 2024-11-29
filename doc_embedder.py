@@ -15,7 +15,7 @@ from doc_cleaner import clean_sentences, count_words
 
 # Configuration
 ROOT_PATH = Path("/mnt/shared/ipp/") 
-DOCS_PATH = Path("/mnt/shared/ipp/processed_text") 
+DOCS_PATH = Path("/mnt/shared/ipp/text_clean") 
 OUTPUT_DOC_DIR = ROOT_PATH / "haystack/docs"
 OUTPUT_EMBED_DIR = ROOT_PATH / "haystack/embeddings/"
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" # faster: "sentence-transformers/all-MiniLM-L6-v2"
