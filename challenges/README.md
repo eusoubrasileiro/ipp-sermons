@@ -5,7 +5,7 @@ Many segments are very short. Many only have one word. Most don't have any punct
 If present, most punctuations are ',' comma. Some segments start with upper letter and some with lower case.
 
 
-### What is the best package for transcription?
+### What is the best sofware for transcription?
 
 Due problems mentioned above and looking for a best approach...
 Analysing based on a low quality transcription of 36 minutes of audio on "10-10-2021 - Eclesiastes 3.2b-3a.txt".
@@ -14,26 +14,26 @@ This initial version was run using large-v3-turbo and llama.cpp
 The simple analysis consists of counting number of '.', '?', '!' (sentence ends).
 Too few sentences, or too big sentences, is a indicative of low quality.
 
-- 1. Using model large-v3-turbo whispercpp    
+1. Using model large-v3-turbo whispercpp    
 
     10-10-2021 - Eclesiastes 3.2b-3a.txt
     grep -Poz '(?<=\?|\.|!)(\n)'  10-10-2021\ -\ Eclesiastes\ 3.2b-3a.txt | wc -l 
     58 # end of phrases or sentences
     Very Bad quality an average of 1.61 phrases per minute of audio.
 
-- 2. Using model large-v3 whisper.cpp (defaul f16?)
+2. Using model large-v3 whisper.cpp (defaul f16?)
     
     10-10-2021 - Eclesiastes 3.2b-3a.txt_v2
     grep -Poz '(?<=\?|\.|!)(\n)'  10-10-2021\ -\ Eclesiastes\ 3.2b-3a.txt_v2 | wc -l 
     359 # end of phrases or sentences    
     Good average of 10 phrases per minute
 
-- 3. Using model large-v3 whispercpp SYSTRAN/faster-whisper f16 with batch_size=4
+3. Using model large-v3 whispercpp SYSTRAN/faster-whisper f16 with batch_size=4
     10-10-2021 - Eclesiastes 3.2b-3a.txt_v3
 
     It uses Silero VAD filter to identify the silences to make the splits for the batches.
     Using python text = open('10-10-2021 - Eclesiastes 3.2b-3a.txt_v3', 'r').read()
-    # *2 due two float point '.' on timestamp per line (\n')
+    *2 due two float point '.' on timestamp per line (\n')
     text.count('.')+text.count('!')+text.count('?')-text.count('\n')*2 
     348
     Good average of 10 phrases per minute a bit worse than not splitting.
@@ -47,7 +47,7 @@ Too few sentences, or too big sentences, is a indicative of low quality.
         beam_size=5, language='pt', batch_size=4, without_timestamps=True, vad_filter=True, chunk_length=25)`
     same problem.
 
-- 4. Using large-v3 using whisperx fork of Nyralei  
+4. Using large-v3 using whisperx fork of Nyralei  
 
     - before alignment
     10-10-2021 - Eclesiastes 3.2b-3a.txt_vx1
@@ -72,8 +72,8 @@ Too few sentences, or too big sentences, is a indicative of low quality.
 
 
 Despite whisperX (Nyralei fork) having less 'sentences' we will stick with that.
-The reason is that it performs many clean-ups has many advanced features for high quality transcription, including also  forced alignment. Forced Alignment refers to the process by which orthographic transcriptions are aligned to audio recordings to automatically generate phone level segmentation.
-That guarantees a better quality by somehow removing words not having a phonetic 'match'. We also get probability of word-sound match maybe useful afterwards.This post here also votes in favor of whisperx https://amgadhasan.substack.com/p/sota-asr-tooling-long-form-transcription.
+The reason is that it performs many clean-ups and has many advanced features for high quality transcription, including also  forced alignment. Forced Alignment refers to the process by which orthographic transcriptions are aligned to audio recordings to automatically generate phone level segmentation.
+That guarantees a better quality by somehow removing words not having a phonetic 'match'. We also get probability of word-sound match (maybe useful afterwards).This post here also votes in favor of whisperx https://amgadhasan.substack.com/p/sota-asr-tooling-long-form-transcription.
 
 
 - Notes because whisperx is somewhat dead
@@ -84,7 +84,9 @@ That guarantees a better quality by somehow removing words not having a phonetic
     2. https://github.com/federicotorrielli/BetterWhisperX --- 
     3. https://github.com/Nyralei/whisperX
 
-- Another possible solution for sentence fragments
+
+
+### Yet another possible solution for sentence fragments (future exploration)
 
 A Extra tree classifier to 'restore' punctuation.
 Let's then mix this sentence transformer approach with the previous question to create a model that responds: should I merge or not (yes or no)? That model will be used to test whether a new fragment should be added or not. I like your idea of adding a word of the candidate fragment each time and calculate a new sentence embedding. I thought about using this to feed in the model (ExtraTreeClassifier Binary) as well but maybe that's too much. 
