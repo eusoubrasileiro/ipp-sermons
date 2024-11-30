@@ -121,12 +121,17 @@
 </main>
 
 <footer>
-    &copy; 2024 - Igreja - Todos os direitos reservados.
+    &copy; 2024 - Igreja Peregrinos - Todos os direitos reservados.
 </footer>
 
 <script>
-document.getElementById("search").addEventListener("click", async () => {
-    const query = document.getElementById("query").value;
+// Get the button and query input elements
+const searchButton = document.getElementById("search");
+const queryInput = document.getElementById("query");
+
+// Function to perform the search
+const performSearch = async () => {
+    const query = queryInput.value;
     const response = await fetch("/query", {
         method: "POST",
         headers: {
@@ -154,6 +159,16 @@ document.getElementById("search").addEventListener("click", async () => {
         `;
         resultsDiv.appendChild(div);
     });
+};
+
+// Add click event listener to the search button
+searchButton.addEventListener("click", performSearch);
+
+// Add keydown event listener to the query input for Enter key
+queryInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+        performSearch();
+    }
 });
 </script>
 
