@@ -10,9 +10,9 @@ from rapidfuzz import process, fuzz
 # Grab metadata from spotify using Spotify API
 def episodes_spotify():
     # Replace these with your Spotify API credentials
-    CLIENT_ID = 'f0878b5a01664facb6d8553baf30f024'
-    CLIENT_SECRET = '7150fe04541a4b05b43ff4ebe6bb8ecf'
-    SHOW_ID = '1DgxzkzYvNGLNv7UawbEUP'  # The podcast's unique Spotify ID
+    # CLIENT_ID = 
+    # CLIENT_SECRET = 
+    # SHOW_ID = 
 
     # Step 1: Get a token
     auth_response = requests.post(

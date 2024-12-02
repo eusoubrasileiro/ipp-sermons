@@ -92,4 +92,10 @@ A Extra tree classifier to 'restore' punctuation.
 Let's then mix this sentence transformer approach with the previous question to create a model that responds: should I merge or not (yes or no)? That model will be used to test whether a new fragment should be added or not. I like your idea of adding a word of the candidate fragment each time and calculate a new sentence embedding. I thought about using this to feed in the model (ExtraTreeClassifier Binary) as well but maybe that's too much. 
 
 
+### Low quality audio
+
+Some sermons are so bad tha we can't understand what's been said. Trucks and other sounds make it almost useless audio.
+Maybe use the probabilty score of words from forced alignment to calculate so kind of quality score to warn the users... like : 'this is very bad quality of audio'. For example: '13-11-2020 - Igreja de Cristo no Antigo Testamento (1)'
+
+
 
