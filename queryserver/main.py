@@ -43,6 +43,16 @@ def loadHaystakPipeline(root_data_path : Path) -> Pipeline:
     return pipeline
 
 
+async def handle_suggestion(request):
+    data = await request.json()
+    suggestion = data.get("suggestion", "")
+    if suggestion.strip():  # Verificar se a sugestão não está vazia
+        with open("sugestoes.txt", "a", encoding="utf-8") as file:
+            file.write(suggestion + "\n")
+        return web.json_response({"status": "success", "message": "Sugestão salva com sucesso!"})
+    return web.json_response({"status": "error", "message": "Sugestão vazia."}, status=400)
+
+
 # Define query endpoint
 async def query(request):
     data = await request.json()
@@ -87,6 +97,7 @@ if __name__ == "__main__":
     app = web.Application()
     app.router.add_post("/query", query)
     app.router.add_get("/", index)
+    app.router.add_post("/suggestion", handle_suggestion)
     app['index_path'] = Path(args.index_path).absolute()
     app['pipeline'] = loadHaystakPipeline(Path(args.data_path))
     web.run_app(app, host="0.0.0.0", port=8890)

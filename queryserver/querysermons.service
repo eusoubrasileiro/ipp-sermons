@@ -1,0 +1,13 @@
+[Unit]
+Description=Sermons IPP QServer Webserver
+After=network.target
+
+[Service]
+Type=simple
+User=andre  
+WorkingDirectory=/home/andre/sermons-ipp-qserver  
+ExecStart=/home/andre/venvai/bin/python3 main.py -i /home/andre/sermons-ipp-qserver -d /home/andre/sermons-ipp-qserver
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
