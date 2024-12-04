@@ -43,7 +43,12 @@ def process_audio(input_file: Path, data_folder: Path):
 
 
 def transcribe_audio_subprocess(audio_files: List[Path], script_path : Path, output_path: Path, offset=0):
-    for file in tqdm(audio_files[offset:]):
+    output_path = output_path / "text"
+    output_path.mkdir(exist_ok=True)  
+    for file in tqdm(audio_files[offset:]):                  
+        txt_file = output_path / (file.stem + ".txt")
+        if txt_file.exists():
+            continue
         cmd = [
             "python", script_path.absolute(),
             "--audio-file", str(file.absolute()),

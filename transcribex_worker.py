@@ -6,12 +6,10 @@ import gzip
 from pathlib import Path
 import argparse
 
-def transcribe(audio_file : Path, output_path : Path):
-    text_folder = output_path / "text"
-    text_folder.mkdir(exist_ok=True)
-    
-    txt_file = text_folder / (audio_file.stem + ".txt")
-    json_gz_file = text_folder / (audio_file.stem + ".gz")
+def transcribe(audio_file : Path, output_path : Path):    
+
+    txt_file = output_path / (audio_file.stem + ".txt")
+    json_gz_file = output_path / (audio_file.stem + ".gz")
 
     if txt_file.exists():
         return
