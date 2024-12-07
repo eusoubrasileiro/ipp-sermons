@@ -142,8 +142,8 @@ if __name__ == "__main__":
             "PORTUGUESE_WORD_REPEAT_RULE"
         ]
 
-    workpath = pathlib.Path('/mnt/shared/ipp')  
-    metadata = pd.read_csv(workpath / 'metadata.txt')
+    workpath = pathlib.Path('/mnt/shared/ipp-sermons-text')  
+    metadata = pd.read_csv(workpath / 'metadata'/'metadata.txt')
     # metadata.loc[:, 'grammar_score'] = None
     # metadata.loc[:, 'short_score'] = None
     # metadata.loc[:, 'repetition_score'] = None
