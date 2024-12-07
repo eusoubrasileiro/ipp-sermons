@@ -14,7 +14,7 @@ from copy import deepcopy
 from doc_cleaner import clean_sentences, count_words
 
 # Configuration
-ROOT_PATH = Path("/mnt/shared/ipp/") 
+ROOT_PATH = Path("/mnt/shared/ipp-sermons-text/") 
 DOCS_PATH = Path("/mnt/shared/ipp/text_clean") 
 OUTPUT_DOC_DIR = ROOT_PATH / "haystack/docs"
 OUTPUT_EMBED_DIR = ROOT_PATH / "haystack/embeddings/"

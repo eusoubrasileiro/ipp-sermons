@@ -67,7 +67,7 @@ def clean_up_mp3_names():
 def soundcloud_metadata():
     metadata = pd.DataFrame(columns=['date', 'name', 'mp3_name', 'duration', 'size', 'artist', 'sc_url'])
     # grabing soundclound metadata information from mp3 downloaded
-    date_reg = re.compile('(\d{2}).+(\d{2}).+(\d{4})')
+    date_reg = re.compile(r'(\d{2}).+(\d{2}).+(\d{4})')
     for path in tqdm(list((workpath / 'mp3_raw').glob('*.mp3'))):    
         name = path.name 
         mp3 = MP3(str(path.absolute()))
@@ -87,7 +87,7 @@ def soundcloud_metadata():
             pass 
     return metadata
 
-workpath = pathlib.Path('/mnt/Data/ipp-sermons')
+workpath = pathlib.Path('/mnt/Data/ipp-sermons-text')
 
 clean_up_mp3_names()
 sc_metadata = soundcloud_metadata()
@@ -150,4 +150,4 @@ df_preachers = pd.read_csv( (workpath/'preacher_names.txt').absolute())
 # match artist names to preacher names using fuzzy matching
 metadata.artist = metadata.apply(lambda r: find_closest_name(r.artist, df_preachers), axis=1)
 
-metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata.txt').absolute(), index=False)
+metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata'/'metadata.txt').absolute(), index=False)
