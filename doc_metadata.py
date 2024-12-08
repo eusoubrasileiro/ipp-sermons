@@ -87,7 +87,7 @@ def soundcloud_metadata():
             pass 
     return metadata
 
-workpath = pathlib.Path('/mnt/Data/ipp-sermons-text')
+workpath = pathlib.Path('/mnt/Data/ipp-sermons-texts')
 
 clean_up_mp3_names()
 sc_metadata = soundcloud_metadata()
@@ -122,6 +122,10 @@ metadata.loc[:, 'sp_date'] = None
 metadata.loc[:, 'sp_url'] = None
 metadata.loc[:, 'pub_date'] = None
 metadata.loc[:, 'description'] = None
+metadata.loc[:, 'edited'] = False # edited by hand
+# need to use this column to check if it was edited by hand and 
+# if so cannot overwrite the columns that already exist
+
 for row in metadata.iterrows():
     name = row[1]['name']
     res = sp_metadata.query(f"'{name}' in name or '{name}' in description")
@@ -139,15 +143,15 @@ for row in metadata.iterrows():
             break 
 
 metadata = metadata[['name', 'description', 'mp3_name', 'artist', 'sc_url',
-       'sp_url', 'date', 'pub_date', 'sp_date', 'duration', 'size']]
+       'sp_url', 'date', 'pub_date', 'sp_date', 'duration', 'size', 'edited']]
 
 metadata['artist'] =  metadata.apply(lambda x: get_autor(x), axis=1)
 
 # remove extra spaces on preacher name
 metadata.artist = metadata.artist.apply(lambda x: re.sub(r'\s+', ' ', x).strip() if x else x)
 # standar name or reference names of preachers
-df_preachers = pd.read_csv( (workpath/'preacher_names.txt').absolute())
+df_preachers = pd.read_csv( (workpath/ 'metadata' / 'preacher_names.txt').absolute())
 # match artist names to preacher names using fuzzy matching
 metadata.artist = metadata.apply(lambda r: find_closest_name(r.artist, df_preachers), axis=1)
 
-metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata'/'metadata.txt').absolute(), index=False)
+metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata'/'metadata.csv').absolute(), index=False)
