@@ -1,20 +1,71 @@
 import pathlib
-import re 
-import pandas as pd 
-import datetime 
+import re
+import pandas as pd
+import datetime
 import requests
 from mutagen.mp3 import MP3
 from tqdm import tqdm
 from rapidfuzz import process, fuzz
 
-# Grab metadata from spotify using Spotify API
-def episodes_spotify():
-    # Replace these with your Spotify API credentials
-    # CLIENT_ID = 
-    # CLIENT_SECRET = 
-    # SHOW_ID = 
 
-    # Step 1: Get a token
+# --- Configuration ---
+WORKPATH = pathlib.Path('/mnt/Data/ipp-sermons-texts')
+METADATA_FILE = WORKPATH / 'metadata' / 'metadata.csv'
+PREACHER_NAMES_FILE = WORKPATH / 'metadata' / 'preacher_names.txt'
+
+# --- Utility Functions ---
+def load_metadata():
+    """Load the metadata CSV, or create a new DataFrame if it doesn't exist."""
+    if METADATA_FILE.exists():
+        return pd.read_csv(METADATA_FILE)
+    else:
+        columns = ['name', 'description', 'mp3_name', 'artist', 'sc_url', 'sp_url', 'date', 
+                   'pub_date', 'duration', 'size', 'edited']
+        return pd.DataFrame(columns=columns)
+
+# --- SoundCloud Metadata ---
+def clean_up_mp3_names():
+    """Clean up invalid characters in MP3 file names."""
+    for path in tqdm(list(WORKPATH.rglob('*.*')), desc="Cleaning MP3 names"):
+        if '�' in path.name:
+            path.rename(path.parent / path.name.replace('�', '-'))
+
+
+def extract_soundcloud_metadata():
+    """Extract metadata from MP3 files in the SoundCloud folder."""
+    metadata = []
+    date_reg = re.compile(r'(\d{2}).+(\d{2}).+(\d{4})')
+
+    for path in tqdm((WORKPATH / 'mp3_raw').glob('*.mp3'), desc="Extracting SoundCloud metadata"):
+        mp3 = MP3(str(path))
+        mp3_data = {
+            'name': mp3['TIT2'].text[0],
+            'mp3_name': path.stem,
+            'artist': mp3['TPE1'].text[0],
+            'sc_url': str(mp3['WOAF']),
+            'duration': mp3.info.length,
+            'size': path.stat().st_size
+        }
+        try:
+            # Extract date from filename if possible
+            match = date_reg.search(path.name)
+            if match:
+                d, m, y = map(int, match.groups())
+                mp3_data['date'] = datetime.date(y, m, d)            
+        except Exception as e:
+            print(f"Error processing {path.name}: {e}")
+        metadata.append(mp3_data)
+    return pd.DataFrame(metadata)
+
+
+# --- Spotify Metadata ---
+def fetch_spotify_metadata():
+    """Fetch metadata from Spotify's API."""
+    CLIENT_ID = 'xxxxxxxxxxx'
+    CLIENT_SECRET = 'xxxxxxxxxxx'
+    SHOW_ID = 'xxxxxxxxxxx'  # The podcast's unique Spotify ID
+
+    # Step 1: Get access token
     auth_response = requests.post(
         'https://accounts.spotify.com/api/token',
         {
@@ -23,135 +74,124 @@ def episodes_spotify():
             'client_secret': CLIENT_SECRET,
         }
     )
+    auth_response.raise_for_status()
     access_token = auth_response.json().get('access_token')
 
-    # Step 2: Fetch episode data
-    url = f'https://api.spotify.com/v1/shows/{SHOW_ID}/episodes'
-    headers = {
-        'Authorization': f'Bearer {access_token}',
-    }
-    params = {
-        'limit': 50,  # Max limit per request; paginate if necessary
-    }
-
+    # Step 2: Fetch episodes
     episodes = []
+    url = f'https://api.spotify.com/v1/shows/{SHOW_ID}/episodes'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'limit': 50}  # Adjust for pagination
+
     while url:
         response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
         data = response.json()
         episodes.extend(data['items'])
-        url = data.get('next')  # For pagination
+        url = data.get('next')  # Next page URL
 
-    return episodes
+    # Process episode data
+    metadata = []
+    for episode in episodes:
+        episode_data = {
+            'name': episode['name'],
+            'description': episode['description'],
+            'sp_url': episode['external_urls']['spotify'],
+            'pub_date': episode['release_date'],
+            'duration': episode['duration_ms'] / 1000
+        }
+        metadata.append(episode_data)
 
-def get_autor(row):
+    return pd.DataFrame(metadata)
+
+
+def get_autor(row, df_preachers=None):
     def autor(texto):
         if texto is None:
             return None 
         # A regex busca a palavra 'por' seguida de qualquer combinação de palavras (nome do autor).
-        match = re.search(r'por\s(.+)', texto)
+        match = re.search(r'(?:por|Por)\s(.+)', texto)
         if match:
             return match.group(1)  # Retorna o nome do autor
         return None  # Caso não encontre o autor        
-    autor_ = autor(row['name'])    
-    return autor_ if autor_ else autor(row['description'])
+    autor_ = autor(row['name'])     
+    autor_ = autor_ if autor_ else autor(row['description'])
+    if not autor_:
+        return None
+    return process.extract(autor_, df_preachers.name.to_list(), scorer=fuzz.ratio, limit=1)[0][0]
 
-def find_closest_name(name, df_preachers):
-    if name:
-        return process.extract(name, df_preachers.name.to_list(), scorer=fuzz.ratio, limit=1)[0][0]
 
-def clean_up_mp3_names():
-    for path in tqdm(list((workpath).rglob('*.*'))):
-        if '�' in path.name:
-            path.rename(path.parent / path.name.replace('�', '-'))        
-
-def soundcloud_metadata():
-    metadata = pd.DataFrame(columns=['date', 'name', 'mp3_name', 'duration', 'size', 'artist', 'sc_url'])
-    # grabing soundclound metadata information from mp3 downloaded
-    date_reg = re.compile(r'(\d{2}).+(\d{2}).+(\d{4})')
-    for path in tqdm(list((workpath / 'mp3_raw').glob('*.mp3'))):    
-        name = path.name 
-        mp3 = MP3(str(path.absolute()))
-        duration = mp3.info.length*1000  # Duration in milliseconds    
-        metadata.loc[len(metadata)] = [None, 
-                                    mp3['TIT2'].text[0], 
-                                    path.stem, 
-                                    duration, 
-                                    path.stat().st_size, 
-                                    mp3['TPE1'].text[0],
-                                    str(mp3['WOAF'])] # url 
-        try: # try extract date if avaliable
-            d, m, y = map(int, date_reg.findall(name)[0])        
-            #print(f"{d}/{m}/{y} {name[13:].replace('�', '')}", end='\n')
-            metadata.loc[len(metadata)-1, 'date'] = datetime.datetime(y, m, d).date()
-        except: # there is no date on the name 
-            pass 
-    return metadata
-
-workpath = pathlib.Path('/mnt/Data/ipp-sermons-texts')
-
-clean_up_mp3_names()
-sc_metadata = soundcloud_metadata()
-
-episodes = episodes_spotify()
-sp_metadata = pd.DataFrame(columns=['date', 'pub_date', 'name', 'description', 'duration', 'sp_url'])
-
-for episode in episodes:
-    # sometimes date is on name, sometimes date is on description 
-    full_text = episode['name'] + ' ' + episode['description'] 
-    sp_metadata.loc[len(sp_metadata)] = [
-            None, 
-            episode['release_date'], 
-            episode['name'], 
-            episode['description'], 
-            datetime.timedelta(seconds=int(episode['duration_ms'])).total_seconds(),
-            episode['external_urls']['spotify']
-        ]
-    try: # try extract date if avaliable
-        d, m, y = map(int,re.findall(r'(\d{2}).+(\d{2}).+(\d{4})', full_text)[0])                
-        sp_metadata.loc[len(sp_metadata)-1, 'date'] = datetime.datetime(y, m, d).date()
-    except:
-        pass 
-
-#metadata_spotify.duration_ms = metadata_spotify.duration_ms.astype(int)
-#metadata_spotify.sort_values(by='date').tail(10)
-#metadata_spotify.sort_values('date', axis=0).to_csv( (workpath/'metadata_spotify.txt').absolute(), index=False)
-
-i=0
-metadata = sc_metadata.copy()
-metadata.loc[:, 'sp_date'] = None
-metadata.loc[:, 'sp_url'] = None
-metadata.loc[:, 'pub_date'] = None
-metadata.loc[:, 'description'] = None
-metadata.loc[:, 'edited'] = False # edited by hand
-# need to use this column to check if it was edited by hand and 
-# if so cannot overwrite the columns that already exist
-
-for row in metadata.iterrows():
-    name = row[1]['name']
-    res = sp_metadata.query(f"'{name}' in name or '{name}' in description")
-    if len(res)==1:        
-        metadata.loc[row[0], 'sp_date'] = res.iloc[0].date
-        metadata.loc[row[0], 'sp_url'] = res.iloc[0].sp_url
-        metadata.loc[row[0], 'pub_date'] = res.iloc[0].pub_date        
-        metadata.loc[row[0], 'description'] = res.iloc[0].description        
-        i+=1
-    else:
-        if res.name.nunique() == 1:
-            print(f'repeated episode {res.name.iloc[0]} ignoring')
-            i+=1
+def update_metadata_row(metadata, combined_row, key_column='name'):
+    """
+    Update or add a row in the metadata DataFrame based on a key column.
+    Args:
+        metadata (pd.DataFrame): The metadata DataFrame to update.
+        combined_row (dict): The row data to merge into the DataFrame.
+        key_column (str): The column used to identify rows (default is 'name').
+    Returns:
+        pd.DataFrame: Updated metadata DataFrame.
+    """
+    def update_row_with_dict(dataframe, index, dictionary):  
+        for key in dictionary.keys():  
+            dataframe.loc[index, key] = dictionary.get(key)     
+    combined_row['edited'] = False
+    nbefore = len(metadata)
+    existing_row = metadata[metadata[key_column] == combined_row[key_column]]
+    if not existing_row.empty: # Update an existing row
+        index = existing_row.index[0]
+        existing_row = existing_row.iloc[0].to_dict()
+        if existing_row.get('edited', False):  # If manually edited
+            # Only add keys not already present in the existing row
+            combined_row = {k: v for k, v in combined_row.items() if k not in existing_row}
+            if combined_row:
+                combined_row['edited'] = True                         
+                update_row_with_dict(metadata, index, combined_row) 
         else:
-            break 
+            update_row_with_dict(metadata, index, combined_row) 
+    else: # Add as a new row        
+        metadata = pd.concat([metadata, pd.DataFrame([combined_row])], ignore_index=True)
+    return len(metadata)-nbefore, metadata
 
-metadata = metadata[['name', 'description', 'mp3_name', 'artist', 'sc_url',
-       'sp_url', 'date', 'pub_date', 'sp_date', 'duration', 'size', 'edited']]
 
-metadata['artist'] =  metadata.apply(lambda x: get_autor(x), axis=1)
+# --- Main Processing ---
+def process_metadata():
+    """Process SoundCloud and Spotify metadata, and save results."""
+    clean_up_mp3_names()
 
-# remove extra spaces on preacher name
-metadata.artist = metadata.artist.apply(lambda x: re.sub(r'\s+', ' ', x).strip() if x else x)
-# standar name or reference names of preachers
-df_preachers = pd.read_csv( (workpath/ 'metadata' / 'preacher_names.txt').absolute())
-# match artist names to preacher names using fuzzy matching
-metadata.artist = metadata.apply(lambda r: find_closest_name(r.artist, df_preachers), axis=1)
+    # Load metadata
+    metadata = load_metadata()
+    first_run = False
+    if len(metadata) == 0:
+        first_run = True
+    # Extract SoundCloud metadata
+    sc_metadata = extract_soundcloud_metadata()
+    # Fetch Spotify metadata
+    sp_metadata = fetch_spotify_metadata()
+    df_preachers = pd.read_csv(PREACHER_NAMES_FILE)
+    # Merge SoundCloud and Spotify metadata
+    imatch = 0
+    for _, sc_row in sc_metadata.iterrows():
+        #matching_sc = sc_metadata.query(f"'{sp_row['name'].strip()}' in name or '{sp_row['description'].strip()}' in name")
+        matching_sp = sp_metadata[sp_metadata['name'].str.contains(sc_row['name'], na=False, regex=False) | 
+                                sp_metadata['description'].str.contains(sc_row['name'], na=False, regex=False)] 
+        if len(matching_sp) >= 1:            
+            if len(matching_sp) > 1:
+                print(f"Repeated file uploaded - Found multiple matches for '{sc_row['name']}' : {matching_sp}")
+            #matching_sp = matching_sp.iloc[0] if len(matching_sp) > 1 else matching_sp
+            sp_row = matching_sp.iloc[0]
+            combined_row = sc_row.to_dict() | sp_row.to_dict() # merge 
+            combined_row['artist'] = get_autor(combined_row, df_preachers)
+            iadded, metadata = update_metadata_row(metadata, combined_row)            
+            imatch += iadded
+            if iadded == 0 and first_run: 
+                # when running for the first time and the metadata is empty
+                # those are repeated mp3 files mistakenly uploaded
+                print(f"Repeated file uploaded - This was already inserted {combined_row['name']}")        
+        else:
+            print(f"No match for '{sp_row['name']}'")
 
-metadata.sort_values('date', axis=0).to_csv( (workpath/'metadata'/'metadata.csv').absolute(), index=False)
+    # Save final metadata
+    metadata.to_csv(METADATA_FILE, index=False)    
+
+if __name__ == "__main__":
+    metadata = process_metadata()
