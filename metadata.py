@@ -67,6 +67,8 @@ def try_extract_date(text, timestamp):
             date = pd.to_datetime(timestamp, unit='s').date()       
     return date
 
+
+
 def update_soundcloud_metadata(metadata_ids):
     """
     Extract metadata from .json files from yt-dlp folder.
@@ -77,8 +79,9 @@ def update_soundcloud_metadata(metadata_ids):
     return a dataframe with the new metadata
     """      
     def get_audio(json_meta):
-        return [audio for audio in ytdlp_path.glob(f"*{json_meta['display_id']}*") 
-                if audio.suffix != '.json'][0]                 
+        paths = [audio for audio in ytdlp_path.glob(f"*{json_meta['display_id']}*") 
+                if audio.suffix != '.json']
+        return paths[0].name                  
     
     ytdlp_path = config['path']['audio']  
     spotify_meta = spotify_urls()
@@ -96,7 +99,7 @@ def update_soundcloud_metadata(metadata_ids):
             meta = {
             'name' : json_meta['title'],
             'description' : json_meta['description'],
-            'audio_name' : get_audio(json_meta),
+            'audio' : get_audio(json_meta),
             'artist' : json_meta['artist'] if 'artist' in json_meta else None,    
             'sc_suffix_url' : json_meta['webpage_url_basename'],
             'duration_str' : json_meta['duration_string'] if 'duration_string' in json_meta else None,
@@ -131,11 +134,9 @@ def update_soundcloud_metadata(metadata_ids):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-spot-id','--spotify-client-id', default=False, action='store_true')
-    parser.add_argument('-spot-cs','--spotify-client-secret', default=False, action='store_true')
+    parser.add_argument('-id','--spotify-client-id', type=str, default=False)
+    parser.add_argument('-cs','--spotify-client-secret', type=str, default=False)
     args = parser.parse_args()
-    #spotify_client_id = 'f0878b5a01664facb6d8553baf30f024'
-    #spotify_client_secret = '7150fe04541a4b05b43ff4ebe6bb8ecf'
     config['spotify']['client_id'] = args.spotify_client_id
     config['spotify']['client_secret'] = args.spotify_client_secret
     metadata = pd.read_csv(config['metadata_csv'])
