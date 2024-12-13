@@ -58,6 +58,7 @@ if __name__ == "__main__":
         transcribe_audio(wav_file)
         metadata.loc[idx, 'wav'] = True
         metadata.loc[idx, 'transcribed'] = True
+        metadata.loc[idx, 'txt'] = f"{audio.stem}.txt"
         metadata.to_csv(config['metadata_csv'], index=False)
 
 
