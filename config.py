@@ -17,10 +17,19 @@ config['spotify'] = {}
 config['spotify']['client_id'] = 'set-at-run-time'
 config['spotify']['client_secret'] = 'set-at-run-time'
 config['spotify']['show_id'] = '1DgxzkzYvNGLNv7UawbEUP' # ipperegrinos podcast's unique Spotify ID
+config['whisperx'] = {}
 config['whisperx']['worker_script'] = pathlib.Path('/home/andre/Projects/ipp-sermons/transcribex_worker.py')
-
 # to join with url soundcloud and spotify
 config['sc_base_url'] = "https://soundcloud.com/ipperegrinos"
 config['sp_base_url'] = "https://open.spotify.com/episode"
 config['yt-dlp-cmd'] = "yt-dlp https://soundcloud.com/ipperegrinos -x --audio-format best --write-info-json" # --playlist-end 30
+
+
+config['doc_cleaner'] = {}
+config['doc_cleaner']['language_tool_rules'] = [ "UPPERCASE_AFTER_COMMA",
+												"UPPERCASE_SENTENCE_START",
+												"VERB_COMMA_CONJUNCTION",
+												"ALTERNATIVE_CONJUNCTIONS_COMMA",
+												"PORTUGUESE_WORD_REPEAT_RULE" ]
+
 
