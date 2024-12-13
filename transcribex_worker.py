@@ -11,9 +11,6 @@ def transcribe(audio_file : Path, output_path : Path):
     txt_file = output_path / (audio_file.stem + ".txt")
     json_gz_file = output_path / (audio_file.stem + ".gz")
 
-    if txt_file.exists():
-        return
-
     device = "cuda"
     batch_size = 4
     try:
