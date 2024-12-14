@@ -7,6 +7,7 @@ config['debug'] = False
 config['path'] = {}
 config['path']['metadata'] = DATAPATH / 'metadata'
 config['path']['transcripts'] = {}
+config['path']['transcripts']['alignment'] = DATAPATH / 'transcripts' / 'alignment'
 config['path']['transcripts']['raw'] = DATAPATH / 'transcripts' / 'raw'
 config['path']['transcripts']['processed'] = DATAPATH / 'transcripts' / 'processed'
 config['path']['audio'] = DATAPATH / 'audio'

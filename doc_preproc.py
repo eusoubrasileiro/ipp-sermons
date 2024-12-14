@@ -5,14 +5,67 @@ import pandas as pd
 import language_tool_python
 from tqdm import tqdm
 import spacy
+from config import config
+import gzip
+import json
+import string
+
+def audio_wav2vec_score(file_path):
+    """
+    Uses the forced alignment (from wav2vec model) probability score saved as json (gzip).
+    With that, for each word of entire transcription, calculates the overal weighted average
+    score. 
+    The closer to 1 the better. In realy values close to 0.8 are already pretty good.
+    Trash audios are close or bellow 0.5
+
+    Details:
+        For each word in a segment, calculates the weighted score using the word length as the weight.
+        Sums up the weighted scores and weights.
+        Calculates and the segment's weighted average score.    
+        Aggregates the weighted scores and weights for all segments.
+        Calculates and the overall weighted average score.
+    """
+    # Open, decompress, and load the JSON file
+    with gzip.open(file_path, 'rt', encoding='utf-8') as file:
+        data = json.load(file)
+    
+    segments = data.get("segments", [])
+    overall_score_sum = 0
+    overall_weight_sum = 0
+
+    # Function to remove punctuations
+    def clean_word(word):
+        return word.translate(str.maketrans('', '', string.punctuation))
+
+    for segment in segments:
+        segment_score_sum = 0
+        segment_weight_sum = 0
+
+        for word_info in segment.get("words", []):
+            word = clean_word(word_info["word"])
+            score = word_info.get("score", 0)
+            weight = len(word)
+            segment_score_sum += score * weight
+            segment_weight_sum += weight
+
+        overall_score_sum += segment_score_sum
+        overall_weight_sum += segment_weight_sum
+
+    # Calculate overall weighted average score
+    if overall_weight_sum > 0:
+        overall_weighted_average = overall_score_sum / overall_weight_sum
+    else:
+        overall_weighted_average = 0
+
+    return round(100*overall_weighted_average, 1)
 
 # --- Helper Functions ---
-def setup_nlp_tools(config):
+def setup_nlp_tools():
     """Setup language and NLP tools."""
     nlp = spacy.load("pt_core_news_lg", disable=["ner", "textcat"])
     language_tool = language_tool_python.LanguageTool('pt-BR')
     language_tool.enabled_rules_only = True
-    language_tool.enabled_rules = config['language_tool_rules']
+    language_tool.enabled_rules = config['doc_cleaner']['language_tool_rules']
     return nlp, language_tool
 
 
@@ -116,75 +169,48 @@ def clean_transcript(path, nlp, language_tool, verbose=False):
     sent1 = count_sent(text, nlp)
     return text, nwords, sent0, sent1, ncorrec0+ncorrec1
 
-from doc_metadata import update_metadata_row
-from tools import pretty_duration
+
+def process_file(txt_file, nlp, language_tool, verbose=False):
+    # Clean transcript
+    cleaned_text, words, sent0, sent1, ncorrec = clean_transcript(txt_file, nlp, language_tool)                
+    # Save cleaned transcript
+    output_text = config['path']['transcripts']['processed'] / txt_file.name
+    processed_sentences = clean_sentences(cleaned_text, nlp, return_list=True)
+    with output_text.open("w") as f:
+        f.write(" ".join(processed_sentences))
+    return words, sent1, 
 
 
-def process_file(txt_file, metadata, nlp, language_tool, config, verbose=False):
-        # Clean transcript
-        cleaned_text, words, sent0, sent1, ncorrec = clean_transcript(txt_file, nlp, language_tool)
-                
-        row = metadata[metadata.mp3_name == txt_file.stem]
-        row = row.iloc[0].to_dict()
-        duration_min = row['duration'] / 60
+def process_transcripts():
+    """try to clean transcript text files and update metadata."""
 
-        combined_row = copy.deepcopy(row) # Update metadata        
-        combined_row.update({
-            "words": words,
-            "sentences": sent1,
-            "sentences_min": sent1 / duration_min,
-            "duration_str" : pretty_duration(row['duration']),
-        })
-
-        update_metadata_row(metadata, combined_row)
-
-        # Save cleaned transcript
-        output_path = config['processed_folder'] / txt_file.name
-        processed_sentences = clean_sentences(cleaned_text, nlp, return_list=True)
-        with output_path.open("w") as f:
-            f.write(" ".join(processed_sentences))
-
-# --- Main Script ---
-
-from joblib import Parallel, delayed
-
-def process_transcripts(config):
-    """Process transcript files and update metadata."""
     # Setup NLP tools
-    nlp, language_tool = setup_nlp_tools(config)
+    nlp, language_tool = setup_nlp_tools()
 
-    # Load metadata
-    metadata = pd.read_csv(config['metadata_path'])
+    config['path']['transcripts']['processed'].mkdir(exist_ok=True)
+    metadata = pd.read_csv(config['metadata_csv'])
+    
+    # get only the ones that haven't been transcribed yet 
+    selected = metadata[metadata.transcribed]  #  (transcribed == True)
+    selected = selected[~selected.processed]  #  (processed == False)    
+    for idx, row in tqdm(selected.iterrows(), desc="Processing Transcript Files"):
 
-    # Filter files based on metadata entries
-    mp3_files = metadata['mp3_name'].dropna().unique()
-    txt_files = [config['raw_folder'] / f"{file}.txt" 
-                 for file in mp3_files 
-                    if (config['raw_folder'] / f"{file}.txt").exists()]
+        txt_file = (config['path']['transcripts']['raw'] / row['audio']).with_suffix(".txt")
+        words, sent = process_file(txt_file, nlp, language_tool)   
 
-    # Process files
-    for txt_file in tqdm(txt_files, desc="Processing Transcript Files"):
-        process_file(txt_file, metadata, nlp, language_tool, config)        
+        jsongz_file = (config['path']['transcripts']['alignment'] / row['audio']).with_suffix(".gz")        
+        score = audio_wav2vec_score(jsongz_file)        
 
-    # Save updated metadata
-    metadata.sort_values('date', axis=0).to_csv(config['metadata_path'], index=False)
+        metadata.loc[idx, 'score'] = score
+        metadata.loc[idx, 'words'] = words
+        metadata.loc[idx, 'sentences'] = sent
+        metadata.loc[idx, 'words_min'] = words / row['duration']
+        metadata.loc[idx, 'sentences_min'] = sent / row['duration']
+        metadata.loc[idx, 'processed'] = True        
+        metadata.to_csv(config['metadata_csv'], index=False)
 
 
 
 if __name__ == "__main__":
-    # Configuration
-    config = {
-        "metadata_path": pathlib.Path('/mnt/Data/ipp-sermons-texts/metadata/metadata.csv'),
-        "raw_folder": pathlib.Path('/mnt/Data/ipp-sermons-texts/raw'),
-        "processed_folder": pathlib.Path('/mnt/Data/ipp-sermons-texts/processed'),
-        "language_tool_rules": [
-            "UPPERCASE_AFTER_COMMA",
-            "UPPERCASE_SENTENCE_START",
-            "VERB_COMMA_CONJUNCTION",
-            "ALTERNATIVE_CONJUNCTIONS_COMMA",
-            "PORTUGUESE_WORD_REPEAT_RULE",
-        ],
-    }
+    process_transcripts()
 
-    # Process transcripts
-    process_transcripts(config)
