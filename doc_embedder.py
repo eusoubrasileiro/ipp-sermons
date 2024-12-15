@@ -11,18 +11,10 @@ from typing import List
 import pandas as pd 
 import spacy
 from copy import deepcopy 
-from doc_cleaner import clean_sentences, count_words
+from config import config
+from doc_preproc import clean_sentences, count_words
 
-# Configuration
-ROOT_PATH = Path("/mnt/shared/ipp-sermons-text/") 
-DOCS_PATH = Path("/mnt/shared/ipp/text_clean") 
-OUTPUT_DOC_DIR = ROOT_PATH / "haystack/docs"
-OUTPUT_EMBED_DIR = ROOT_PATH / "haystack/embeddings/"
-MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" # faster: "sentence-transformers/all-MiniLM-L6-v2"
 
-# Ensure output directories exist
-OUTPUT_DOC_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_EMBED_DIR.mkdir(parents=True, exist_ok=True)
 
 def clean_and_split_text(text, nlp, word_count=200, overlap=30):
     """
@@ -37,7 +29,7 @@ def clean_and_split_text(text, nlp, word_count=200, overlap=30):
         List[str]: List of text chunks.
     """
     # Step 2: Sentence tokenization
-    sentences = clean_sentences(text.replace('\n', ' '), return_list=True)
+    sentences = clean_sentences(text.replace('\n', ' '), nlp, return_list=True)
 
     # Step 3: Dynamic merging of sentences to meet word count thresholds
     chunks = []
@@ -45,7 +37,7 @@ def clean_and_split_text(text, nlp, word_count=200, overlap=30):
     current_word_count = 0
 
     for sentence in sentences:
-        sentence_word_count = count_words(sentence)
+        sentence_word_count = count_words(sentence, nlp)
         
         # If adding the sentence exceeds the word_count limit, finalize the chunk
         if current_word_count + sentence_word_count > word_count:
@@ -64,7 +56,7 @@ def clean_and_split_text(text, nlp, word_count=200, overlap=30):
 
     adjusted_chunks = []
     for chunk in chunks:
-        chunk_word_count = count_words(chunk)
+        chunk_word_count = count_words(chunk, nlp)
         
         if chunk_word_count > 1.25 * word_count:
             # Use spaCy tokens to split chunk into smaller segments
@@ -125,51 +117,58 @@ class SentenceWordSplitter(DocumentSplitter):
             split_docs.extend(self._split(doc))
         return {"documents": split_docs}
 
-    
-document_splitter = SentenceWordSplitter(word_count=200, overlap=30)
-document_embedder = SentenceTransformersDocumentEmbedder(
-    model=MODEL_NAME, device=ComponentDevice.from_str("cuda:0"), progress_bar=False
-)
 
-# metadata to include on vector embeddings
-metadatacsv = pd.read_csv(ROOT_PATH / 'metadata.txt')
-metadatacsv = metadatacsv[['artist', 'url', 'spot_url', 'sentences_min', 'duration', 'sdcl_file_name']]
-metadatacsv.duration = metadatacsv.duration * 0.001 / 60
-metadatacsv = metadatacsv.rename(columns={'url' : 'sdc_url', 'sentences_min' : 'sent_min'})
-document_embedder.warm_up() # [Document...] now contain embeedings    
+if __name__ == "main":
 
-# Process each document
-for path in tqdm(list(DOCS_PATH.glob("*.txt"))):    
-    embedings_file = OUTPUT_EMBED_DIR / f"{path.stem}.npz"
-    textnmeta_file = OUTPUT_DOC_DIR / f"{path.stem}.gz"
-    # Skip if both files already exist - some names includes '.' so
-    if embedings_file.exists() and textnmeta_file.exists():
-        continue
-    # Read the document content
-    with path.open("r") as f:    
-        text = f.read()        
-    text = text.replace('\n', ' ') # just in this case 
-    row = metadatacsv.query(f"'{path.stem}' in sdcl_file_name")
-    meta = row.to_dict('records')[0]
-    del meta['sdcl_file_name']
-    meta['title'] = path.stem
-    doc = Document(content=text, meta=meta)
-    # need more metadata from spotify, soundcloud etc.
-    split_docs = document_splitter.run([doc])  # better split
-    # need a good cleaning and maybe another splitter?
-    docs = document_embedder.run(split_docs['documents']) # a=input list[Document]
-    # Save embeddings and metadata
-    embeddings = []
-    metadata = []
-    for doc in docs['documents']:
-        metadata.append({            
-            "content": doc.content,
-            "meta": doc.meta
-        })
-        embeddings.append(doc.embedding)        
-    np.savez_compressed(embedings_file, embeddings=embeddings)    
-    with textnmeta_file.open("wb") as f:
-        compressed_metadata = gzip.compress(json.dumps(metadata, ensure_ascii=False).encode("utf-8"))
-        f.write(compressed_metadata)
-        
-print(f"Processed all documents from {DOCS_PATH}. Results saved to {OUTPUT_DOC_DIR} and {OUTPUT_EMBED_DIR}.")
+    # Ensure output directories exist
+    config['path']['rag']['docs'].mkdir(parents=True, exist_ok=True)
+    config['path']['rag']['embeddings'].mkdir(parents=True, exist_ok=True)
+
+    document_splitter = SentenceWordSplitter(word_count=200, overlap=30)
+    document_embedder = SentenceTransformersDocumentEmbedder(
+        model=config['rag']['models']['sentence-transformer'], 
+        device=ComponentDevice.from_str("cuda:0"), progress_bar=False
+    )
+
+    # metadata to include on vector embeddings
+    metadata = pd.read_csv(config['metadata_csv'])
+    selected = metadata[metadata.processed & (metadata.score > 50)]
+    columns = ['name', 'description', 'txt', 'artist', 'duration_str', 'id', 'view_count', 
+            'sc_suffix_url', 'sp_suffix_url', 
+            'date', 'words', 'sentences', 'words_min', 'sentences_min', 'score']
+    metadata = selected[columns]
+
+    document_embedder.warm_up() 
+
+    # Process each document
+    for idx, row in tqdm(selected.iterrows(), total=len(selected)):    
+        doc_file = config['path']['transcripts']['processed'] / row['txt']
+        embedings_file = config['path']['rag']['embeddings'] / f"{doc_file.stem}.npz"
+        textnmeta_file = config['path']['rag']['docs'] / f"{doc_file.stem}.gz"
+        # Skip if both files already exist - some names includes '.' so
+        if embedings_file.exists() and textnmeta_file.exists():
+            continue
+        # Read the document content
+        with doc_file.open("r") as f:    
+            text = f.read()        
+        meta = row.to_dict()
+        meta['spotify_url'] = f"{config['spotify_base_url']}/{row['sp_suffix_url']}"
+        meta['soundcloud_url'] = f"{config['soundcloud_base_url']}/{row['sc_suffix_url']}"
+        doc = Document(content=text, meta=meta)
+        # need more metadata from spotify, soundcloud etc.
+        split_docs = document_splitter.run([doc])  # better split
+        # need a good cleaning and maybe another splitter?
+        docs = document_embedder.run(split_docs['documents']) # a=input list[Document]
+        # Save embeddings and metadata
+        embeddings = []
+        metadata = []
+        for doc in docs['documents']:
+            metadata.append({            
+                "content": doc.content,
+                "meta": doc.meta
+            })
+            embeddings.append(doc.embedding)        
+        np.savez_compressed(embedings_file, embeddings=embeddings)    
+        with textnmeta_file.open("wb") as f:
+            compressed_metadata = gzip.compress(json.dumps(metadata, ensure_ascii=False).encode("utf-8"))
+            f.write(compressed_metadata)

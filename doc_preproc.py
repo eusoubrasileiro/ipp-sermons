@@ -178,7 +178,7 @@ def process_file(txt_file, nlp, language_tool, verbose=False):
     processed_sentences = clean_sentences(cleaned_text, nlp, return_list=True)
     with output_text.open("w") as f:
         f.write(" ".join(processed_sentences))
-    return words, sent1, 
+    return words, sent1, sent1/sent0
 
 
 def process_transcripts():
@@ -193,21 +193,27 @@ def process_transcripts():
     # get only the ones that haven't been transcribed yet 
     selected = metadata[metadata.transcribed]  #  (transcribed == True)
     selected = selected[~selected.processed]  #  (processed == False)    
-    for idx, row in tqdm(selected.iterrows(), desc="Processing Transcript Files"):
+    for idx, row in tqdm(selected.iterrows(), desc="Processing Transcript Files", total=len(selected)):
 
-        txt_file = (config['path']['transcripts']['raw'] / row['audio']).with_suffix(".txt")
-        words, sent = process_file(txt_file, nlp, language_tool)   
+        try: 
+            txt_file = (config['path']['transcripts']['raw'] / row['txt']).with_suffix(".txt")
+            words, sent, ratio = process_file(txt_file, nlp, language_tool)   
 
-        jsongz_file = (config['path']['transcripts']['alignment'] / row['audio']).with_suffix(".gz")        
-        score = audio_wav2vec_score(jsongz_file)        
+            jsongz_file = (config['path']['transcripts']['alignment'] / row['txt']).with_suffix(".gz")        
+            score = audio_wav2vec_score(jsongz_file)        
 
-        metadata.loc[idx, 'score'] = score
-        metadata.loc[idx, 'words'] = words
-        metadata.loc[idx, 'sentences'] = sent
-        metadata.loc[idx, 'words_min'] = words / row['duration']
-        metadata.loc[idx, 'sentences_min'] = sent / row['duration']
-        metadata.loc[idx, 'processed'] = True        
-        metadata.to_csv(config['metadata_csv'], index=False)
+            metadata.loc[idx, 'score'] = score
+            metadata.loc[idx, 'words'] = words            
+            metadata.loc[idx, 'sent_ratio'] = ratio
+            metadata.loc[idx, 'sentences'] = sent
+            metadata.loc[idx, 'words_min'] = words / (row['duration']/60)
+            metadata.loc[idx, 'sentences_min'] = sent / (row['duration']/60)
+            metadata.loc[idx, 'processed'] = True        
+            metadata.to_csv(config['metadata_csv'], index=False)
+        except:
+            print(f"Error processing {row}")
+            metadata.loc[idx, 'processed'] = False
+            metadata.to_csv(config['metadata_csv'], index=False)
 
 
 

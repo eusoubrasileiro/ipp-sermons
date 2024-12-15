@@ -21,10 +21,10 @@ config['spotify']['show_id'] = '1DgxzkzYvNGLNv7UawbEUP' # ipperegrinos podcast's
 config['whisperx'] = {}
 config['whisperx']['worker_script'] = pathlib.Path('/home/andre/Projects/ipp-sermons/transcribex_worker.py')
 # to join with url soundcloud and spotify
-config['sc_base_url'] = "https://soundcloud.com/ipperegrinos"
-config['sp_base_url'] = "https://open.spotify.com/episode"
-config['yt-dlp-cmd'] = "yt-dlp https://soundcloud.com/ipperegrinos -x --audio-format best --write-info-json" # --playlist-end 30
+config['soundcloud_base_url'] = "https://soundcloud.com/ipperegrinos"
+config['spotify_base_url'] = "https://open.spotify.com/episode"
 
+config['yt-dlp-cmd'] = "yt-dlp https://soundcloud.com/ipperegrinos -x --audio-format best --write-info-json" # --playlist-end 30
 
 config['doc_cleaner'] = {}
 config['doc_cleaner']['language_tool_rules'] = [ "UPPERCASE_AFTER_COMMA",
@@ -33,4 +33,12 @@ config['doc_cleaner']['language_tool_rules'] = [ "UPPERCASE_AFTER_COMMA",
 												"ALTERNATIVE_CONJUNCTIONS_COMMA",
 												"PORTUGUESE_WORD_REPEAT_RULE" ]
 
+# RAG with haystack
+config['rag'] = {}
+config['rag']['models'] = {}
+config['rag']['models']['sentence-transformer'] = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" 
+# faster: "sentence-transformers/all-MiniLM-L6-v2"
+config['path']['rag'] = {}
+config['path']['rag']['embeddings'] = DATAPATH / 'haystack' / 'embeddings'
+config['path']['rag']['docs'] = DATAPATH / 'haystack' / 'docs'
 
