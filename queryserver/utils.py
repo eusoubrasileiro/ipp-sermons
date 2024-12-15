@@ -5,14 +5,15 @@ from pathlib import Path
 from haystack import Document
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from tqdm import tqdm
+from config import config 
 
 def load_documents_and_embeddings(root_data_path : Path, verbose=False) -> InMemoryDocumentStore:
     """
     Load metadata and embeddings from disk and recreate documents 
     returning a InMemoryDocumentStore.
     """
-    metadata_path = root_data_path / "haystack/docs"
-    embed_path = root_data_path / "haystack/embeddings"
+    metadata_path = config['path']['rag']['docs']
+    embed_path = config['path']['rag']['embeddings']
     # Initialize an empty document store
     document_store = InMemoryDocumentStore()
     if verbose:
