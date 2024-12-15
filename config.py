@@ -37,6 +37,7 @@ config['doc_cleaner']['language_tool_rules'] = [ "UPPERCASE_AFTER_COMMA",
 config['rag'] = {}
 config['rag']['models'] = {}
 config['rag']['models']['sentence-transformer'] = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" 
+config['rag']['models']['reranker-transformer'] = "BAAI/bge-reranker-v2-m3"
 # faster: "sentence-transformers/all-MiniLM-L6-v2"
 config['path']['rag'] = {}
 config['path']['rag']['embeddings'] = DATAPATH / 'haystack' / 'embeddings'
