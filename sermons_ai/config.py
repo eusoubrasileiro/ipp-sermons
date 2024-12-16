@@ -19,7 +19,7 @@ config['spotify']['client_id'] = 'set-at-run-time'
 config['spotify']['client_secret'] = 'set-at-run-time'
 config['spotify']['show_id'] = '1DgxzkzYvNGLNv7UawbEUP' # ipperegrinos podcast's unique Spotify ID
 config['whisperx'] = {}
-config['whisperx']['worker_script'] = pathlib.Path('/home/andre/Projects/ipp-sermons/transcribex_worker.py')
+config['whisperx']['worker_script'] = pathlib.Path('/home/andre/Projects/ipp-sermons/sermons_ai/transcribex_worker.py')
 # to join with url soundcloud and spotify
 config['soundcloud_base_url'] = "https://soundcloud.com/ipperegrinos"
 config['spotify_base_url'] = "https://open.spotify.com/episode"
