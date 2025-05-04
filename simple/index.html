@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Ipperegrinos Audio Catalogue</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <style>
+    body {font-family: system-ui, sans-serif; margin: 2rem; line-height: 1.4;}
+    h1   {font-size: 1.5rem; margin: 0 0 1rem;}
+    input[type="search"] {
+      width: 100%; max-width: 400px;
+      padding: .5rem; font-size: 1rem; border: 1px solid #ccc; border-radius: 4px;
+    }
+    ul   {list-style: none; padding: 0; margin-top: 1rem;}
+    li   {margin: .4rem 0;}
+    a    {text-decoration: none; color: #0366d6;}
+    a:hover {text-decoration: underline;}
+    .meta{font-size: .85rem; color: #555; margin-left: .25rem;}
+  </style>
+</head>
+<body>
+  <h1>Ipperegrinos Audio Catalogue</h1>
+
+  <p>Total tracks: <span id="total">…</span></p>
+  <input id="q" type="search" placeholder="Type to search titles…" autofocus>
+
+  <ul id="res"></ul>
+
+  <!-- Fuse.js for fuzzy search -->
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6"></script>
+  <script>
+    const q        = document.getElementById('q');
+    const res      = document.getElementById('res');
+    const totalLbl = document.getElementById('total');
+
+    fetch('tracks.json') 
+      .then(r => r.json())
+      .then(list => {
+        totalLbl.textContent = list.length;
+
+        const fuse = new Fuse(list, {
+          keys: ['title'],
+          threshold: 0.4                 // tweak for more/less fuzziness
+        });
+
+        const render = items => {
+          res.innerHTML = items.map(item => `
+            <li>
+              <a href="${item.url}" target="_blank" rel="noopener noreferrer">
+                ${item.title}
+              </a>
+              ${item.upload_date ? `<span class="meta">(${item.upload_date})</span>` : ''}
+            </li>`).join('');
+        };
+
+        // show full list on first load
+        render(list);
+
+        q.addEventListener('input', e => {
+          const term = e.target.value.trim();
+          render(term ? fuse.search(term).map(h => h.item) : list);
+        });
+      })
+      .catch(err => {
+        res.innerHTML = '<li>Error loading tracks.json</li>';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
