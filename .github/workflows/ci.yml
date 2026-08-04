@@ -1,0 +1,77 @@
+# CI — make the cheap gates unbypassable.
+#
+# Every gate in this repo lives in a local husky hook, which means it is
+# skippable with `--no-verify` and unrunnable by anyone without this laptop's
+# docker + pnpm + a real .env. Neither matters while one person commits from one
+# machine; both matter the moment a second contributor or a branch-protection
+# rule needs to trust a green check.
+#
+# So this runs the gates that need NO secrets and NO vendor accounts:
+#
+#   here          typecheck, lint, unit suites with coverage, quality gate
+#   local only    pnpm eval (real OpenRouter calls against the real corpus DB),
+#                 pnpm index
+#   never in CI   anything that spends money
+#
+# `node scripts/security-review.mjs` is deliberately absent: it needs an
+# authenticated Claude CLI, which a runner does not have. Pre-push owns it.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push makes an in-flight run pointless — except on main, where every
+# commit's result is a record worth keeping.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # quality-gate.mjs attributes a regression against the merge-base, so
+          # a single-commit shallow clone would make every regression "unknown"
+          # and fail closed.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # @ipp/shared is consumed as built dist, and the Prisma client is
+      # generated rather than committed. Nothing typechecks without both.
+      - name: Build shared
+        run: pnpm --filter @ipp/shared build
+
+      - name: Generate Prisma client
+        run: pnpm --filter @ipp/backend exec prisma generate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      # Unit tests hit neither the database nor the network: createApp() takes
+      # its dependencies, so the real routes run against stubs. No Postgres
+      # service is needed here.
+      - name: Tests + coverage
+        run: pnpm test:coverage
+
+      # Last: it scores the coverage artifacts the previous step produced, and
+      # is the ratchet that fails on regression rather than on an absolute.
+      - name: Quality gate
+        run: pnpm quality-gate
