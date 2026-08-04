@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "db:push": "prisma db push --schema prisma/schema.prisma",
+    "db:push": "bash scripts/db-push.sh",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "index": "node --experimental-strip-types src/scripts/index-corpus.ts"
   },
