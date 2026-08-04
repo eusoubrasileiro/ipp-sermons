@@ -1,9 +1,18 @@
 #!/usr/bin/env sh
-# Fast gate. Biome auto-fix on staged files, then full typecheck + unit tests
-# across the workspace.
+# Fast gate. Four stages:
+#   1. lint-staged   — Biome across the repo (see lint-staged.config.js)
+#   2. typecheck     — every workspace; catches cross-file effects of a staged change
+#   3. test:coverage — unit tests, and writes coverage-summary.json for stage 4
+#   4. quality-gate  — deterministic metric ratchet vs quality-baseline.json
 #
-# The heavier stages from the house template (coverage ratchet against
-# quality-baseline.json, LLM security review) are deliberately not wired up
-# yet -- the frontend package does not exist, so there is no meaningful
-# baseline to ratchet against. Add them once Phase 5 lands.
+# The LLM reviewer runs on pre-push only, not here — it costs a real API call
+# per invocation and the inner loop has to stay interactive.
+#
+# Abort on the FIRST failing stage. Without `set -e`, sh runs every remaining
+# line and exits with the status of the LAST one, so a type error followed by
+# passing tests would exit 0 and the commit would land.
+set -e
 pnpm exec lint-staged
+pnpm typecheck
+pnpm test:coverage
+pnpm quality-gate

@@ -2,13 +2,54 @@
 # Heavy gate. Runs once before `git push` — the last check before the branch
 # leaves the machine.
 #
-# Adapted from the standards template, which shipped stages this repo has not
-# wired yet: `pnpm exec tsc --noEmit` finds no root tsconfig (workspaces own
-# their own, so typechecking must recurse), and show-review-log /
-# quality-gate / security-review all live in a `scripts/` directory that does
-# not exist here. Referencing them made the hook unpassable rather than strict.
-# Restore them individually as they are actually brought in.
+# `pnpm typecheck` rather than the template's `pnpm exec tsc --noEmit`: there is
+# no root tsconfig, each workspace owns its own, so typechecking must recurse.
 set -e
+
+# Read the pushed refs from stdin (readable once) so security-review.mjs can
+# scope its diff to exactly what is being pushed. Each line is
+# "<local_ref> <local_sha> <remote_ref> <remote_sha>"; a deletion carries the
+# zero SHA as local_sha and has no commits to gate.
+stdin_data="$(cat)"
+zero_sha="0000000000000000000000000000000000000000"
+has_real_push=0
+PUSH_LOCAL_SHA=""
+PUSH_REMOTE_SHA=""
+PUSH_REMOTE_REF=""
+
+if [ -n "$stdin_data" ]; then
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    local_sha="$(printf '%s' "$line" | awk '{print $2}')"
+    if [ "$local_sha" != "$zero_sha" ]; then
+      has_real_push=1
+      PUSH_LOCAL_SHA="$local_sha"
+      PUSH_REMOTE_REF="$(printf '%s' "$line" | awk '{print $3}')"
+      PUSH_REMOTE_SHA="$(printf '%s' "$line" | awk '{print $4}')"
+      break
+    fi
+  done <<EOF
+$stdin_data
+EOF
+fi
+
+if [ "$has_real_push" -eq 0 ]; then
+  echo "[pre-push] delete-only push, skipping heavy gate"
+  exit 0
+fi
+
+export PUSH_LOCAL_SHA PUSH_REMOTE_SHA PUSH_REMOTE_REF
+
 pnpm typecheck
 pnpm lint
-pnpm test
+pnpm test:coverage
+pnpm quality-gate
+node scripts/security-review.mjs
+
+# Printed last, and after the reviewer, so the operator sees every verdict in
+# the pushed range while the push is still abortable.
+echo ""
+echo "=== Security review log (commits being pushed) ==="
+node scripts/show-review-log.mjs
+echo "==================================================="
+echo "Inspect above. Ctrl+C to abort if anything looks wrong."
