@@ -1,0 +1,89 @@
+// Schema for the IPP sermon search corpus.
+//
+// Two tables: one row per sermon (the legacy metadata.csv), and one row per
+// retrievable chunk. Chunks carry their own embedding so search returns the
+// passage that matched, not the whole 6,400-word transcript.
+//
+// The parts Prisma cannot express — the pt_unaccent text-search config, the
+// generated tsvector column, the HNSW/GIN indexes and the hybrid_search()
+// function — live in prisma/sql/001_hybrid_search.sql and are applied after
+// `prisma db push`.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector, unaccent]
+}
+
+model Sermon {
+  id String @id
+
+  title       String
+  /// Preacher, normalized against the 28 canonical names in preacher_names.txt.
+  artist      String
+  date        DateTime  @db.Date
+  durationStr String    @map("duration_str")
+  durationSec Int       @map("duration_sec")
+
+  /// URL suffixes, not full URLs — matches the legacy columns. The app builds
+  /// the playable link; the 77 GB of audio is never hosted here.
+  scSuffixUrl String? @map("sc_suffix_url")
+  spSuffixUrl String? @map("sp_suffix_url")
+
+  /// wav2vec forced-alignment quality (0-100). The corpus is filtered to > 50,
+  /// the same cutoff the GPU pipeline used.
+  score        Float
+  words        Int
+  sentences    Int
+  /// Delivery pace, surfaced in the UI by the old frontend.
+  wordsMin     Float @map("words_min")
+  sentencesMin Float @map("sentences_min")
+
+  chunks SermonChunk[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@index([artist])
+  @@map("sermons")
+}
+
+model SermonChunk {
+  id String @id @default(uuid())
+
+  sermonId String @map("sermon_id")
+  sermon   Sermon @relation(fields: [sermonId], references: [id], onDelete: Cascade)
+
+  /// Position within the sermon, so results can be ordered and cited.
+  chunkIndex Int    @map("chunk_index")
+  content    String
+
+  /// sha256 of (sermonId + chunkIndex + content). Makes re-indexing idempotent:
+  /// an unchanged chunk is skipped rather than re-embedded.
+  contentHash String @map("content_hash")
+
+  /// gemini-embedding-001 truncated 3072 -> 1536 (Matryoshka) and re-normalized.
+  /// halfvec halves storage at negligible recall cost; pgvector caps HNSW on
+  /// `vector` at 2000 dims, which 1536 respects.
+  embedding Unsupported("halfvec(1536)")?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([sermonId, chunkIndex])
+  @@index([contentHash])
+  @@map("sermon_chunks")
+}
+
+/// Feedback box from the old server, moved off an append-only text file.
+model Suggestion {
+  id         String   @id @default(uuid())
+  suggestion String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("suggestions")
+}

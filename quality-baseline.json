@@ -1,0 +1,23 @@
+{
+  "maxFileLinesBackend": 0,
+  "maxFileLinesFrontend": 0,
+  "filesOver500": 0,
+  "complexityViolations": 0,
+  "unusedExports": 0,
+  "unusedTypes": 0,
+  "unusedFiles": 0,
+  "unusedDependencies": 0,
+  "jscpdClones": 0,
+  "jscpdPercentage": "0.00",
+  "anyCasts": 0,
+  "tsSuppressors": 0,
+  "testAssertions": 0,
+  "coverageBackendStatements": 0,
+  "coverageBackendBranches": 0,
+  "coverageBackendFunctions": 0,
+  "coverageBackendLines": 0,
+  "coverageFrontendStatements": 0,
+  "coverageFrontendBranches": 0,
+  "coverageFrontendFunctions": 0,
+  "coverageFrontendLines": 0
+}

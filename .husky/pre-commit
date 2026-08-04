@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+# Fast gate (~15-30s). Runs on every commit. Catches type and unit-level
+# regressions without blocking the inner loop. Five sequential stages:
+#   1. lint-staged   — Biome auto-fix on staged files
+#   2. tsc --noEmit  — full project type-check (catches cross-file effects)
+#   3. unit tests    — produces coverage/coverage-summary.json for stage 4
+#   4. quality-gate  — deterministic metrics ratchet vs quality-baseline.json
+#   5. security-review.mjs — Sonnet 4.6 LLM reviewer
+#
+# Replace `pnpm test:coverage` with the equivalent recipe for your project.
+# Mobile/Expo projects use `pnpm test:coverage --silent`; pnpm-workspace web
+# projects typically use `pnpm -r test:coverage` or filter by package.
+pnpm exec lint-staged
+pnpm exec tsc --noEmit
+pnpm test:coverage --silent
+pnpm quality-gate
+node scripts/security-review.mjs

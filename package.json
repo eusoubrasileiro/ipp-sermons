@@ -1,0 +1,37 @@
+{
+  "name": "ipp-sermons",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Busca de sermões da Igreja Presbiteriana Peregrinos — hybrid search over transcribed sermons",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.15.0",
+  "scripts": {
+    "dev:shared": "pnpm --filter @ipp/shared dev",
+    "dev:backend": "pnpm --filter @ipp/backend dev",
+    "dev:frontend": "pnpm --filter @ipp/frontend dev",
+    "dev": "pnpm --filter @ipp/shared build && concurrently -n backend,frontend -c blue,magenta \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "build": "pnpm --filter @ipp/shared build && pnpm --filter @ipp/backend build && pnpm --filter @ipp/frontend build",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "db:up": "docker compose up -d db",
+    "db:push": "pnpm --filter @ipp/backend db:push",
+    "index": "pnpm --filter @ipp/backend index",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "concurrently": "^9.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "typescript": "^5.7.2"
+  }
+}

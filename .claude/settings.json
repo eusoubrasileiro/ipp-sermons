@@ -1,0 +1,48 @@
+{
+  "_comment": "Permission policy for Claude Code agents. Two tiers: 'allow' = unguarded, 'ask' = human approval required. Replace project-specific paths (TODO comments) before committing. See standards.md §10.",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run typecheck)",
+      "Bash(pnpm run typecheck *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm exec tsc *)",
+      "Bash(pnpm lint *)",
+      "Bash(pnpm dev *)",
+      "Bash(pnpm dispatch *)",
+      "Bash(pnpm dispatch:cleanup *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(curl -s http://127.0.0.1:* *)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs"
+    ],
+    "ask": [
+      "Edit(.husky/**)",
+      "Write(.husky/**)",
+      "Edit(.claude/settings.json)",
+      "Write(.claude/settings.json)",
+      "Edit(commitlint.config.cjs)",
+      "Write(commitlint.config.cjs)",
+      "Edit(quality-baseline.json)",
+      "Write(quality-baseline.json)",
+      "Edit(scripts/quality-gate.mjs)",
+      "Write(scripts/quality-gate.mjs)",
+      "Edit(scripts/security-review.mjs)",
+      "Write(scripts/security-review.mjs)",
+      "Edit(scripts/lib/**)",
+      "Write(scripts/lib/**)",
+      "Edit(scripts/dispatch-worktree.sh)",
+      "Write(scripts/dispatch-worktree.sh)",
+      "Edit(scripts/cleanup-worktrees.sh)",
+      "Write(scripts/cleanup-worktrees.sh)",
+      "Edit(scripts/pr-comment-review.mjs)",
+      "Write(scripts/pr-comment-review.mjs)",
+
+      "_comment_project_specific": "Append project-specific critical paths below. Examples: HTTP API contract (lib/api.ts, frontend/src/lib/api.ts), auth state machines (contexts/AuthContext.tsx, backend/src/lib/auth/**), backend routes (backend/src/routes/**), generated/release artifacts (android/**, prisma/migrations/**), real-API E2E contract tests (e2e/**, backend/test/e2e/real/**, frontend/tests/e2e-real/**), publish/build orchestration scripts (scripts/build-apk.sh, scripts/publish-apk.sh, scripts/ship.sh), test config (jest.config.cjs, vitest.config.ts, playwright.config.ts).",
+      "Edit(backend/src/routes/**)",
+      "Write(backend/src/routes/**)"
+    ]
+  }
+}
