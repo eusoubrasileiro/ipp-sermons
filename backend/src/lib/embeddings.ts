@@ -47,11 +47,27 @@ export function normalize(vec: number[]): number[] {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * An error that retrying cannot fix: a malformed request, or a response whose
+ * shape violates the pgvector contract. Every attempt costs money, so these
+ * bypass the retry loop entirely.
+ */
+export class FatalEmbeddingError extends Error {
+  override readonly name = "FatalEmbeddingError";
+}
+
 export type OpenRouterOptions = {
   apiKey: string;
   model?: string;
   dimensions?: number;
   maxRetries?: number;
+  /**
+   * Per-attempt ceiling. Without this a dropped connection leaves fetch
+   * pending forever: the indexer parks in ep_poll holding no socket, makes no
+   * progress, and never errors -- so the retry loop below never even runs.
+   * Observed for real partway through a full corpus run.
+   */
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -61,6 +77,7 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
     model = EMBEDDING_MODEL,
     dimensions = EMBEDDING_DIMS,
     maxRetries = 5,
+    timeoutMs = 60_000,
     fetchImpl = fetch,
   } = opts;
 
@@ -76,6 +93,9 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
           await sleep(Math.min(2 ** attempt * 500, 16_000));
         }
 
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
         try {
           const res = await fetchImpl(OPENROUTER_URL, {
             method: "POST",
@@ -84,6 +104,7 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
               "Content-Type": "application/json",
             },
             body: JSON.stringify({ model, input: inputs, dimensions }),
+            signal: controller.signal,
           });
 
           if (res.status === 429 || res.status >= 500) {
@@ -94,7 +115,7 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
           if (!res.ok) {
             // 4xx other than rate limiting is a request bug -- retrying wastes
             // money and time, so surface it immediately.
-            throw new Error(`OpenRouter ${res.status}: ${await res.text()}`);
+            throw new FatalEmbeddingError(`OpenRouter ${res.status}: ${await res.text()}`);
           }
 
           const body = (await res.json()) as {
@@ -115,16 +136,20 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
 
           return ordered.map((row) => {
             if (row.embedding.length !== dimensions) {
-              throw new Error(
-                `expected ${dimensions} dims, got ${row.embedding.length} -- ` +
+              throw new FatalEmbeddingError(
+                `expected ${dimensions} dimensions, got ${row.embedding.length} -- ` +
                   "the `dimensions` parameter was not honoured",
               );
             }
             return normalize(row.embedding);
           });
         } catch (err) {
-          if (err instanceof Error && err.message.includes("OpenRouter 4")) throw err;
+          // A wrong dimension count or a malformed request will not fix itself
+          // on retry, and every attempt is billed. Fail fast instead.
+          if (err instanceof FatalEmbeddingError) throw err;
           lastError = err instanceof Error ? err : new Error(String(err));
+        } finally {
+          clearTimeout(timer);
         }
       }
 

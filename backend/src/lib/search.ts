@@ -82,9 +82,10 @@ export async function search(
     FROM hybrid_search(
            ${query},
            ${Prisma.raw(`'${toVectorLiteral(queryVector)}'::halfvec(${EMBEDDING_DIMS})`)},
-           ${candidateCount}
+           ${candidateCount}::int
          ) h
-    JOIN sermons s ON s.id = h.sermon_id`;
+    JOIN sermons s ON s.id = h.sermon_id
+    ORDER BY h.score DESC`;
 
   if (rows.length === 0) return { results: [], reranked: false };
 
