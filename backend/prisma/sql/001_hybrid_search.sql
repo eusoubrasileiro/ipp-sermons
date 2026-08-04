@@ -85,7 +85,13 @@ CREATE OR REPLACE FUNCTION hybrid_search(
   match_count     int   DEFAULT 10,
   full_text_weight  float DEFAULT 1.0,
   semantic_weight   float DEFAULT 1.0,
-  rrf_k           int   DEFAULT 60
+  rrf_k           int   DEFAULT 60,
+  -- Most chunks any one sermon may contribute to the result list. 2 keeps a
+  -- second supporting passage while leaving room for other sermons.
+  max_per_sermon  int   DEFAULT 2,
+  -- Titles are curated metadata (passage + topic), not transcribed speech, so
+  -- a title hit is a strong signal and is weighted above the two text arms.
+  title_weight    float DEFAULT 1.5
 )
 RETURNS TABLE (
   id            text,
@@ -97,7 +103,28 @@ RETURNS TABLE (
 LANGUAGE sql
 STABLE
 AS $$
-  WITH full_text AS (
+  -- Sermons whose *title* matches.
+  --
+  -- A preacher rarely says the title out loud, so the transcript of "O sétimo
+  -- mandamento" never contains that phrase and the sermon ranked 52nd on chunk
+  -- text alone. Titles carry the passage and topic a person actually searches
+  -- for, so match them separately and let the sermon's best chunk represent it.
+  WITH title_match AS (
+    SELECT
+      (SELECT sc.id
+         FROM sermon_chunks sc
+        WHERE sc.sermon_id = s.id
+        ORDER BY ts_rank_cd(sc.fts, ipp_to_tsquery(query_text)) DESC, sc.chunk_index
+        LIMIT 1) AS id,
+      row_number() OVER (
+        ORDER BY ts_rank_cd(to_tsvector('pt_unaccent', s.title), ipp_to_tsquery(query_text)) DESC
+      ) AS rank_ix
+    FROM sermons s
+    WHERE to_tsvector('pt_unaccent', s.title) @@ ipp_to_tsquery(query_text)
+    ORDER BY rank_ix
+    LIMIT match_count * 2
+  ),
+  full_text AS (
     SELECT
       sc.id,
       row_number() OVER (
@@ -106,7 +133,7 @@ AS $$
     FROM sermon_chunks sc
     WHERE sc.fts @@ ipp_to_tsquery(query_text)
     ORDER BY rank_ix
-    LIMIT match_count * 2
+    LIMIT match_count * 8
   ),
   semantic AS (
     SELECT
@@ -115,23 +142,44 @@ AS $$
     FROM sermon_chunks sc
     WHERE sc.embedding IS NOT NULL
     ORDER BY rank_ix
-    LIMIT match_count * 2
-  )
+    LIMIT match_count * 8
+  ),
   -- FULL OUTER JOIN is load-bearing: a chunk found by only one arm must still
   -- compete. An INNER JOIN would silently discard every single-arm hit, which
   -- is exactly the recall the hybrid design exists to capture.
-  SELECT
-    sc.id,
-    sc.sermon_id,
-    sc.chunk_index,
-    sc.content,
-    (
-      COALESCE(1.0 / (rrf_k + full_text.rank_ix), 0.0) * full_text_weight +
-      COALESCE(1.0 / (rrf_k + semantic.rank_ix),  0.0) * semantic_weight
-    )::float AS score
-  FROM full_text
-  FULL OUTER JOIN semantic ON full_text.id = semantic.id
-  JOIN sermon_chunks sc ON sc.id = COALESCE(full_text.id, semantic.id)
-  ORDER BY score DESC
+  fused AS (
+    SELECT
+      sc.id,
+      sc.sermon_id,
+      sc.chunk_index,
+      sc.content,
+      (
+        COALESCE(1.0 / (rrf_k + full_text.rank_ix),   0.0) * full_text_weight +
+        COALESCE(1.0 / (rrf_k + semantic.rank_ix),    0.0) * semantic_weight +
+        COALESCE(1.0 / (rrf_k + title_match.rank_ix), 0.0) * title_weight
+      )::float AS score
+    FROM full_text
+    FULL OUTER JOIN semantic    ON full_text.id = semantic.id
+    FULL OUTER JOIN title_match ON title_match.id = COALESCE(full_text.id, semantic.id)
+    JOIN sermon_chunks sc
+      ON sc.id = COALESCE(full_text.id, semantic.id, title_match.id)
+  ),
+  -- Diversify by sermon.
+  --
+  -- Ranking raw chunks means a long sermon can take most of the result list:
+  -- one 23-chunk sermon filled the top 10 for "Eclesiastes tempo de plantar"
+  -- and buried the other half of the same series. People search for sermons,
+  -- not passages, so cap each sermon's share and let more of them surface.
+  -- The candidate pools above are widened to compensate for what this drops.
+  ranked AS (
+    SELECT
+      f.*,
+      row_number() OVER (PARTITION BY f.sermon_id ORDER BY f.score DESC) AS per_sermon
+    FROM fused f
+  )
+  SELECT r.id, r.sermon_id, r.chunk_index, r.content, r.score
+  FROM ranked r
+  WHERE r.per_sermon <= max_per_sermon
+  ORDER BY r.score DESC
   LIMIT match_count;
 $$;

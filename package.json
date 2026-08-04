@@ -23,7 +23,8 @@
     "db:up": "docker compose up -d db",
     "db:push": "pnpm --filter @ipp/backend db:push",
     "index": "pnpm --filter @ipp/backend index",
-    "prepare": "husky"
+    "prepare": "husky",
+    "eval": "pnpm --filter @ipp/backend eval"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

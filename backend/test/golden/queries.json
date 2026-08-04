@@ -1,0 +1,48 @@
+{
+  "description": "Golden query set for the IPP sermon corpus. Each query names the sermon ids a good result list must surface. Anchored on real sermons in the indexed corpus, not invented ones. This is what proves the API-only rewrite retrieves as well as the GPU system it replaces.",
+  "corpus": { "sermons": 455, "chunks": 19953 },
+  "recallAt": 10,
+  "queries": [
+    {
+      "query": "batismo infantil",
+      "expect": ["898460020"],
+      "why": "exact topical match; the sermon title says it outright"
+    },
+    {
+      "query": "Eclesiastes tempo de plantar",
+      "expect": ["1120415719", "1164188455"],
+      "why": "book plus a phrase from the passage; spans two sermons in the series"
+    },
+    {
+      "query": "justificacao pela fe",
+      "expect": ["1176318775", "1974897147"],
+      "why": "UNACCENTED query against accented transcripts -- exercises pt_unaccent. Expectation corrected: the Efésios 2.8-10 sermon on the five solas was originally listed here, but it has zero chunks mentioning justificação, so requiring it would have meant tuning the search to satisfy a wrong label."
+    },
+    {
+      "query": "sétimo mandamento",
+      "expect": ["772955293"],
+      "why": "accented query, ordinal + noun"
+    },
+    {
+      "query": "Jonas",
+      "expect": ["696314167"],
+      "why": "single proper noun; the case pure vector search handles worst"
+    },
+    {
+      "query": "apologética defesa da fé",
+      "expect": ["999724447"],
+      "why": "topic word plus a paraphrase of it"
+    },
+    {
+      "query": "igrejas brigando",
+      "expect": [],
+      "why": "inflected forms; must stem to igrej/brig and return something rather than nothing",
+      "minResults": 1
+    },
+    {
+      "query": "sola fide somente a fe",
+      "expect": ["1176318775"],
+      "why": "latin phrase mixed with unaccented portuguese"
+    }
+  ]
+}

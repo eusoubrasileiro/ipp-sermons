@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "db:push": "bash scripts/db-push.sh",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
-    "index": "node --experimental-strip-types src/scripts/index-corpus.ts"
+    "index": "node --experimental-strip-types src/scripts/index-corpus.ts",
+    "eval": "node --experimental-strip-types src/scripts/eval-golden.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
