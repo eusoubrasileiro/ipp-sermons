@@ -12,6 +12,11 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+
+  // "native" covers local dev. The debian targets are for the container:
+  // Prisma cannot always detect the libssl version in a slim image and then
+  // guesses wrong, so ship both engines rather than let it pick.
+  binaryTargets = ["native", "debian-openssl-3.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {

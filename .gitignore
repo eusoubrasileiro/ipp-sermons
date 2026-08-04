@@ -6,6 +6,7 @@
 # --- node ---
 node_modules/
 dist/
+backend/public/
 build/
 *.tsbuildinfo
 .turbo/
