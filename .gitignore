@@ -8,16 +8,66 @@ node_modules/
 dist/
 backend/public/
 build/
+coverage/
 *.tsbuildinfo
 .turbo/
+
+# --- dev harness (standards.md §3-§7) ---
+# Quality-gate reports, the reviewer's JSONL log, dispatched worktrees, the
+# leader's plan files and the per-agent env override. Plans MUST stay ignored:
+# an untracked plan in the shared parent tree dirties `git status` and blocks
+# every other leader's dispatch at the parent-clean gate.
+.quality-gate/
+.claude/worktrees/
+.claude/plans/
+.claude/settings.local.json
+.agent-env
+*.log
 
 # --- python (legacy) ---
 __pycache__
 *.pyc
 
 # --- media: never commit audio ---
+# The corpus pipeline downloads ~170 MB of audio per sermon into its work
+# directory (default /mnt/Data/ipp-sermons-work, see tools/corpus-update).
+# Nothing but .txt transcripts and metadata.csv is meant to enter the repo.
 *.wav
 *.mp3
 *.opus
 *.m4a
+*.aac
+*.ogg
+*.webm
+*.flac
 *.gz
+work/
+
+# --- rendered artifacts (standards.md §8, ratified 2026-07-21) ---
+# Validators, Playwright probes and UI reviewers are SUPPOSED to render these;
+# they must never enter git. Denied by location rather than by filename prefix,
+# because every new agent invents a new filename and prefix lists always lose.
+# This repo has no source images today, so a full extension deny is safe — if
+# one is ever added, scope an exception rather than dropping the rule.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.pdf
+**/screenshots/
+**/.playwright-mcp/
+test-results/
+
+# Rendered HTML is an artifact at the repo root and under docs/. It is real
+# SOURCE under frontend/ (the Vite entry point) — never blanket-ignore *.html.
+/*.html
+docs/**/*.html
+
+# --- notebooks carrying live credentials ---
+# archive/notebooks/metadata.ipynb hardcodes a Spotify client_id/client_secret
+# pair in its cells. The file is kept on disk because it documents the original
+# scraping pipeline, but it must not be tracked. Untracking only stops FUTURE
+# exposure: the pair is already reachable from published history (9bec37b
+# onward), so rotating the credential is the actual fix, not this line.
+archive/notebooks/metadata.ipynb
