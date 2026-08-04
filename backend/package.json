@@ -13,7 +13,8 @@
     "db:push": "bash scripts/db-push.sh",
     "db:generate": "prisma generate --schema prisma/schema.prisma",
     "index": "node --experimental-strip-types src/scripts/index-corpus.ts",
-    "eval": "node --experimental-strip-types src/scripts/eval-golden.ts"
+    "eval": "node --experimental-strip-types src/scripts/eval-golden.ts",
+    "verify:corpus": "node --experimental-strip-types src/scripts/verify-corpus.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
     "prisma": "^6.1.0",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

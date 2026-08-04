@@ -7,12 +7,22 @@ export default defineConfig({
   // so there is no CORS and no second origin in production.
   build: { outDir: "../backend/public", emptyOutDir: true },
   server: {
-    proxy: { "/api": "http://localhost:3311" },
+    // Override to point the dev frontend at a backend on another port.
+    proxy: { "/api": process.env.API_PROXY_TARGET ?? "http://localhost:3311" },
   },
   test: {
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
-    include: ["src/**/*.test.tsx"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      // json-summary is not optional: scripts/quality-gate.mjs reads
+      // coverage/coverage-summary.json and treats a missing file as 0%.
+      reporter: ["text", "json-summary", "html"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/main.tsx", "src/test-setup.ts", "src/**/*.test.{ts,tsx}"],
+    },
   },
 });

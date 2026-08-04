@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/knip@latest/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/**/*.mjs"],
+      "project": ["*.{ts,js}", "scripts/**/*.mjs"]
+    },
+    "shared": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "backend": {
+      "entry": ["src/server.ts", "src/scripts/**/*.ts", "test/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"]
+    },
+    "frontend": {
+      "entry": ["src/main.tsx", "vite.config.ts", "src/test-setup.ts"],
+      "project": ["src/**/*.{ts,tsx}"]
+    }
+  },
+  "ignore": ["**/dist/**", "**/coverage/**", "**/.quality-gate/**", "**/node_modules/**"],
+  "ignoreDependencies": ["jscpd", "knip"]
+}

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Busca de sermões da Igreja Presbiteriana Peregrinos — hybrid search over transcribed sermons",
+  "description": "Busca de serm\u00f5es da Igreja Presbiteriana Peregrinos \u2014 hybrid search over transcribed sermons",
   "engines": {
     "node": ">=24"
   },
@@ -20,9 +20,15 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
+    "quality-gate": "node scripts/quality-gate.mjs",
+    "quality-gate:update": "node scripts/quality-gate.mjs --update-baseline",
+    "dispatch": "bash scripts/dispatch-worktree.sh",
+    "dispatch:cleanup": "bash scripts/cleanup-worktrees.sh",
+    "pr:create": "node scripts/pr-comment-review.mjs",
     "db:up": "docker compose up -d db",
     "db:push": "pnpm --filter @ipp/backend db:push",
     "index": "pnpm --filter @ipp/backend index",
+    "verify:corpus": "pnpm --filter @ipp/backend verify:corpus",
     "prepare": "husky",
     "eval": "pnpm --filter @ipp/backend eval"
   },
@@ -32,6 +38,8 @@
     "@commitlint/config-conventional": "^19.6.0",
     "concurrently": "^9.1.0",
     "husky": "^9.1.7",
+    "jscpd": "^4.0.5",
+    "knip": "^5.39.0",
     "lint-staged": "^15.2.11",
     "typescript": "^5.7.2"
   }

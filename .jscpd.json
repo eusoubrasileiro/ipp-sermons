@@ -1,0 +1,14 @@
+{
+  "minLines": 8,
+  "minTokens": 50,
+  "ignore": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.quality-gate/**",
+    "**/node_modules/**"
+  ],
+  "reporters": ["json"],
+  "output": ".quality-gate/jscpd"
+}
