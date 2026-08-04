@@ -1,0 +1,91 @@
+# Production compose for the Hostinger VPS (manager1).
+# Deploy path: /opt/amiticia/ipp-sermons/  -- this file plus .env, no checkout.
+# Reverse proxy: shared Traefik v3 on the external `network_public`, TLS via
+# myresolver.
+#
+# Memory limits are not optional here. The box has 7.8 GB with roughly 2 GB
+# free and no swap, and one existing container already holds 3.1 GB. Both
+# services are capped so a runaway query cannot take the host down with it.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ipp-sermons-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ipp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-ipp_sermons}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    mem_limit: 512m
+    networks:
+      - ipp_internal
+    restart: unless-stopped
+
+  # One-shot: pushes the Prisma schema, then re-applies the raw SQL that
+  # Prisma does not know about. `prisma db push` drops the generated fts
+  # column on every run and takes the GIN index and hybrid_search() with it,
+  # so the two steps must always travel together.
+  migrate:
+    image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
+    container_name: ipp-sermons-migrate
+    env_file: .env
+    command: >
+      sh -c "npx prisma db push --schema prisma/schema.prisma --skip-generate &&
+             npx prisma db execute --schema prisma/schema.prisma
+               --file prisma/sql/001_hybrid_search.sql"
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 384m
+    networks:
+      - ipp_internal
+    restart: "no"
+
+  app:
+    image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
+    container_name: ipp-sermons-app
+    env_file: .env
+    environment:
+      PORT: 3000
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=network_public"
+      - "traefik.http.routers.ipp-sermons.rule=Host(`ipp-sermons.amiticia.cc`)"
+      - "traefik.http.routers.ipp-sermons.entrypoints=websecure"
+      - "traefik.http.routers.ipp-sermons.tls.certresolver=myresolver"
+      - "traefik.http.services.ipp-sermons.loadbalancer.server.port=3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 384m
+    networks:
+      - ipp_internal
+      - network_public
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+
+networks:
+  ipp_internal:
+  network_public:
+    external: true

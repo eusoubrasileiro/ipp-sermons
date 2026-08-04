@@ -1,5 +1,11 @@
 import type { SearchResult } from "@ipp/shared";
-import { Prisma, type PrismaClient } from "@prisma/client";
+import pkg, { type PrismaClient } from "@prisma/client";
+
+// @prisma/client is CommonJS: `import { Prisma }` resolves under the dev
+// loader but not in the compiled ESM build, where named-export detection
+// misses it. Destructure from the default export instead.
+const { Prisma } = pkg;
+
 import { EMBEDDING_DIMS, type EmbeddingsClient, toVectorLiteral } from "./embeddings.ts";
 import type { Reranker } from "./rerank.ts";
 

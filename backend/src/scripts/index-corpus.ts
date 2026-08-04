@@ -1,7 +1,13 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { Prisma, PrismaClient } from "@prisma/client";
+import pkg, { type PrismaClient as PrismaClientType } from "@prisma/client";
+
+// @prisma/client is CommonJS: `import { Prisma }` resolves under the dev
+// loader but not in the compiled ESM build, where named-export detection
+// misses it. Destructure from the default export instead.
+const { Prisma, PrismaClient } = pkg;
+
 import {
   chunkHash,
   chunkText,
@@ -44,7 +50,7 @@ function parseCliArgs(): Args {
   };
 }
 
-async function upsertSermon(prisma: PrismaClient, s: SermonRecord): Promise<void> {
+async function upsertSermon(prisma: PrismaClientType, s: SermonRecord): Promise<void> {
   const row = {
     title: s.title,
     artist: s.artist,

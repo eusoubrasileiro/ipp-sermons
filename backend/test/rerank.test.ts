@@ -82,15 +82,16 @@ describe("createOpenRouterReranker", () => {
   });
 
   it("caps top_n at the number of documents", async () => {
-    const fetchImpl = vi.fn(async () =>
+    // Typed args so the request body can be inspected below.
+    const fetchImpl = vi.fn(async (_url: string, _init?: RequestInit) =>
       jsonResponse({ results: [{ index: 0, relevance_score: 1 }] }),
     );
     const reranker = createOpenRouterReranker({ apiKey: "k", fetchImpl: fetchImpl as never });
 
     await reranker.rerank("q", docs, 100);
-    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit | undefined;
+    const init = fetchImpl.mock.calls[0]?.[1];
     expect(init).toBeDefined();
-    const body = JSON.parse(String(init?.body));
+    const body = JSON.parse(String(init?.body)) as { top_n: number };
     expect(body.top_n).toBe(3);
   });
 });

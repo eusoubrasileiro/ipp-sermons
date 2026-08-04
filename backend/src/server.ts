@@ -1,6 +1,12 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { PrismaClient } from "@prisma/client";
+import pkg from "@prisma/client";
+
+// @prisma/client is CommonJS: `import { PrismaClient }` resolves under the dev
+// loader but not in the compiled ESM build, where named-export detection
+// misses it. Destructure from the default export instead.
+const { PrismaClient } = pkg;
+
 import { createApp } from "./app.ts";
 import { createOpenRouterEmbeddings } from "./lib/embeddings.ts";
 import { createOpenRouterReranker } from "./lib/rerank.ts";

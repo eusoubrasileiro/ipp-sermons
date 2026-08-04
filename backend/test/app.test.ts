@@ -36,6 +36,21 @@ const stubPrisma = (rows: unknown[]) =>
     suggestion: { create: vi.fn(async () => ({})) },
   }) as unknown as PrismaClient;
 
+type SearchBody = {
+  query: string;
+  reranked: boolean;
+  tookMs: number;
+  results: {
+    chunkIndex: number;
+    score: number;
+    soundcloudUrl: string | null;
+    spotifyUrl: string | null;
+    date: string;
+  }[];
+};
+
+const readSearch = async (res: Response): Promise<SearchBody> => (await res.json()) as SearchBody;
+
 const post = (app: ReturnType<typeof createApp>, path: string, body: unknown) =>
   app.request(path, {
     method: "POST",
@@ -59,11 +74,11 @@ describe("POST /api/search", () => {
     const res = await post(app, "/api/search", { query: "graça" });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = await readSearch(res);
     expect(body.results).toHaveLength(1);
-    expect(body.results[0].soundcloudUrl).toBe("https://soundcloud.com/sermao-0");
-    expect(body.results[0].spotifyUrl).toBe("https://open.spotify.com/episode/spid0");
-    expect(body.results[0].date).toBe("2020-05-03");
+    expect(body.results[0]?.soundcloudUrl).toBe("https://soundcloud.com/sermao-0");
+    expect(body.results[0]?.spotifyUrl).toBe("https://open.spotify.com/episode/spid0");
+    expect(body.results[0]?.date).toBe("2020-05-03");
     expect(body.reranked).toBe(false);
   });
 
@@ -86,7 +101,7 @@ describe("POST /api/search", () => {
     const app = createApp({ prisma: stubPrisma(rows), embeddings: stubEmbeddings() });
     const res = await post(app, "/api/search", { query: "graça", limit: 2 });
 
-    expect((await res.json()).results).toHaveLength(2);
+    expect((await readSearch(res)).results).toHaveLength(2);
   });
 
   it("returns 500 rather than leaking an internal error", async () => {
@@ -112,11 +127,11 @@ describe("POST /api/search", () => {
       ]),
     };
     const app = createApp({ prisma: stubPrisma(rows), embeddings: stubEmbeddings(), reranker });
-    const body = await (await post(app, "/api/search", { query: "graça", limit: 2 })).json();
+    const body = await readSearch(await post(app, "/api/search", { query: "graça", limit: 2 }));
 
     expect(body.reranked).toBe(true);
-    expect(body.results[0].chunkIndex).toBe(1);
-    expect(body.results[0].score).toBe(0.99);
+    expect(body.results[0]?.chunkIndex).toBe(1);
+    expect(body.results[0]?.score).toBe(0.99);
   });
 
   it("falls back to RRF order when the reranker fails", async () => {
@@ -126,11 +141,11 @@ describe("POST /api/search", () => {
     const reranker: Reranker = { rerank: vi.fn(async () => null) };
     const app = createApp({ prisma: stubPrisma(rows), embeddings: stubEmbeddings(), reranker });
     const res = await post(app, "/api/search", { query: "graça", limit: 2 });
-    const body = await res.json();
+    const body = await readSearch(res);
 
     expect(res.status).toBe(200);
     expect(body.reranked).toBe(false);
-    expect(body.results[0].chunkIndex).toBe(0);
+    expect(body.results[0]?.chunkIndex).toBe(0);
   });
 });
 
