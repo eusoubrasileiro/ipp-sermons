@@ -1,4 +1,22 @@
+# --- secrets ---
+.env
+.env.*
+!.env.example
+
+# --- node ---
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# --- python (legacy) ---
 __pycache__
+*.pyc
+
+# --- media: never commit audio ---
 *.wav
 *.mp3
+*.opus
+*.m4a
 *.gz
