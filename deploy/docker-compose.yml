@@ -28,22 +28,35 @@ services:
       - ipp_internal
     restart: unless-stopped
 
-  # One-shot: pushes the Prisma schema, then re-applies the raw SQL that
-  # Prisma does not know about. `prisma db push` drops the generated fts
-  # column on every run and takes the GIN index and hybrid_search() with it,
-  # so the two steps must always travel together.
+  # One-shot schema setup, applied as plain SQL by the postgres client.
+  #
+  # 000_schema.sql is generated from schema.prisma (prisma migrate diff) and
+  # committed; 001 adds the pt_unaccent config, fts column, indexes and
+  # hybrid_search(). Both are idempotent, so re-running a deploy is safe.
+  #
+  # Deliberately no Prisma CLI here. It is a devDependency that --prod strips,
+  # and pulling it back in drags @prisma/engines and its own dependency chain
+  # into the runtime image. `npx prisma` is worse still: it ignores the pinned
+  # version and fetches the latest from the network (prisma 7 arrived here and
+  # had dropped --skip-generate), so the migration could change shape between
+  # deploys. Applying committed SQL is deterministic and needs no engine.
   migrate:
-    image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
+    image: postgres:16-alpine
     container_name: ipp-sermons-migrate
-    env_file: .env
-    command: >
-      sh -c "npx prisma db push --schema prisma/schema.prisma --skip-generate &&
-             npx prisma db execute --schema prisma/schema.prisma
-               --file prisma/sql/001_hybrid_search.sql"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./sql:/sql:ro
+    command:
+      [
+        "sh",
+        "-c",
+        "psql -h db -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons} -v ON_ERROR_STOP=1 -f /sql/000_schema.sql && psql -h db -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons} -v ON_ERROR_STOP=1 -f /sql/001_hybrid_search.sql",
+      ]
     depends_on:
       db:
         condition: service_healthy
-    mem_limit: 384m
+    mem_limit: 128m
     networks:
       - ipp_internal
     restart: "no"

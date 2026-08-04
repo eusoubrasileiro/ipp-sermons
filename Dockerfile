@@ -54,6 +54,10 @@ COPY --from=builder /app/backend/prisma       ./prisma
 COPY --from=builder /app/node_modules/.pnpm/@prisma+client*/node_modules/.prisma \
      ./node_modules/.prisma
 
+# The prisma CLI is deliberately NOT shipped here. Migrations run as committed
+# SQL from a postgres:16-alpine sidecar (see deploy/docker-compose.yml), which
+# keeps this image small and the schema step deterministic.
+
 # The corpus ships in the image so a fresh deployment can index itself without
 # reaching back to a developer machine. It is 20 MB of text.
 COPY --from=builder /app/data ./data
