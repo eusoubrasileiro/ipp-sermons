@@ -140,6 +140,21 @@ Each of these cost real debugging time. They are not obvious from the code.
    cosine operator assumes they are, so `normalize()` in `embeddings.ts` is
    load-bearing: without it nothing errors and every similarity is quietly wrong.
 
+8. **`sc_suffix_url` is a track slug, not a URL.** It is yt-dlp's
+   `webpage_url_basename`, so the SoundCloud channel has to be prepended —
+   `https://soundcloud.com/ipperegrinos/<slug>`. Omitting it 404s every play
+   link, which shipped once. `sp_suffix_url` is a bare 22-char Spotify episode
+   id and needs no show context. Both are rebuilt at read time in
+   `backend/src/lib/audio-urls.ts`; nothing stores a full URL.
+
+9. **Spotify links are suppressed for pre-2022 sermons** (`SPOTIFY_LINKS_ALIVE_FROM`
+   in `audio-urls.ts`). Roughly a third of the episode ids no longer resolve and
+   every dead one is from 2019–2021 — the episodes were retired upstream, most
+   likely a podcast-host migration. The ids match both Spotify's API at scrape
+   time and an independent 2025 scrape, so this is a workaround for dead
+   upstream data, not an app bug or a corrupt column. SoundCloud covers 100% of
+   the corpus. Remove the constant and its guard if the old ids are re-scraped.
+
 ## Critical files
 
 Protected by the `ask` tier in `.claude/settings.json` and by the critical-paths

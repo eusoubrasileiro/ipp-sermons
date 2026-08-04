@@ -6,6 +6,7 @@ import pkg, { type PrismaClient } from "@prisma/client";
 // misses it. Destructure from the default export instead.
 const { Prisma } = pkg;
 
+import { soundcloudUrl, spotifyUrl } from "./audio-urls.ts";
 import { EMBEDDING_DIMS, type EmbeddingsClient, toVectorLiteral } from "./embeddings.ts";
 import type { Reranker } from "./rerank.ts";
 
@@ -16,9 +17,6 @@ import type { Reranker } from "./rerank.ts";
  * than in application code -- Postgres is the only place that can rank both
  * arms without shipping the whole corpus over the wire.
  */
-
-const SOUNDCLOUD_BASE = "https://soundcloud.com";
-const SPOTIFY_BASE = "https://open.spotify.com/episode";
 
 type HybridRow = {
   id: string;
@@ -55,14 +53,15 @@ export type SearchOutcome = {
 };
 
 function toSearchResult(row: HybridRow, score: number): SearchResult {
+  const date = row.date.toISOString().slice(0, 10);
   return {
     id: row.sermon_id,
     title: row.title,
     artist: row.artist,
-    date: row.date.toISOString().slice(0, 10),
+    date,
     durationStr: row.duration_str,
-    soundcloudUrl: row.sc_suffix_url ? `${SOUNDCLOUD_BASE}/${row.sc_suffix_url}` : null,
-    spotifyUrl: row.sp_suffix_url ? `${SPOTIFY_BASE}/${row.sp_suffix_url}` : null,
+    soundcloudUrl: soundcloudUrl(row.sc_suffix_url),
+    spotifyUrl: spotifyUrl(row.sp_suffix_url, date),
     content: row.content,
     score,
     chunkIndex: row.chunk_index,

@@ -10,7 +10,7 @@ import type { Reranker } from "../src/lib/rerank.ts";
  * without a database or any network call.
  */
 
-const chunkRow = (i: number) => ({
+const chunkRow = (i: number, date = "2020-05-03") => ({
   id: `c${i}`,
   sermon_id: `s${i}`,
   chunk_index: i,
@@ -18,7 +18,7 @@ const chunkRow = (i: number) => ({
   score: 0.03 - i * 0.001,
   title: `Sermão ${i}`,
   artist: "Reverendo Bruno Melo",
-  date: new Date("2020-05-03T00:00:00Z"),
+  date: new Date(`${date}T00:00:00Z`),
   duration_str: "45:49",
   sc_suffix_url: `sermao-${i}`,
   sp_suffix_url: `spid${i}`,
@@ -70,16 +70,32 @@ describe("GET /api/health", () => {
 
 describe("POST /api/search", () => {
   it("returns results and builds playable urls", async () => {
-    const app = createApp({ prisma: stubPrisma([chunkRow(0)]), embeddings: stubEmbeddings() });
+    const app = createApp({
+      prisma: stubPrisma([chunkRow(0, "2023-03-19")]),
+      embeddings: stubEmbeddings(),
+    });
     const res = await post(app, "/api/search", { query: "graça" });
 
     expect(res.status).toBe(200);
     const body = await readSearch(res);
     expect(body.results).toHaveLength(1);
-    expect(body.results[0]?.soundcloudUrl).toBe("https://soundcloud.com/sermao-0");
+    // The channel segment is mandatory: sc_suffix_url is only the track slug.
+    expect(body.results[0]?.soundcloudUrl).toBe("https://soundcloud.com/ipperegrinos/sermao-0");
     expect(body.results[0]?.spotifyUrl).toBe("https://open.spotify.com/episode/spid0");
-    expect(body.results[0]?.date).toBe("2020-05-03");
+    expect(body.results[0]?.date).toBe("2023-03-19");
     expect(body.reranked).toBe(false);
+  });
+
+  it("withholds the Spotify link for pre-2022 sermons but keeps SoundCloud", async () => {
+    // Those episodes were retired upstream; see SPOTIFY_LINKS_ALIVE_FROM.
+    const app = createApp({
+      prisma: stubPrisma([chunkRow(0, "2021-12-31")]),
+      embeddings: stubEmbeddings(),
+    });
+    const body = await readSearch(await post(app, "/api/search", { query: "graça" }));
+
+    expect(body.results[0]?.spotifyUrl).toBeNull();
+    expect(body.results[0]?.soundcloudUrl).toBe("https://soundcloud.com/ipperegrinos/sermao-0");
   });
 
   it("rejects a too-short query with 400", async () => {
