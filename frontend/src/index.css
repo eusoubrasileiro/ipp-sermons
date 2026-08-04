@@ -1,3 +1,78 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Semantic tokens, light and dark. Dark follows the OS preference: the page has
+ * no account and no settings screen, so a toggle would be state with nowhere to
+ * live. The two brand colours are tokens too -- SoundCloud and Spotify need
+ * different foregrounds per scheme to stay readable.
+ */
+@layer base {
+  :root {
+    --background: 40 30% 97%;
+    --foreground: 220 30% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 12%;
+    --primary: 220 60% 28%;
+    --primary-foreground: 0 0% 100%;
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 12% 38%;
+    --accent: 220 40% 92%;
+    --accent-foreground: 220 60% 24%;
+    --destructive: 0 72% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 38 92% 42%;
+    --highlight: 45 96% 74%;
+    --highlight-foreground: 30 60% 14%;
+    --border: 220 14% 87%;
+    --input: 220 14% 80%;
+    --ring: 220 60% 40%;
+    --soundcloud: 22 92% 48%;
+    --soundcloud-foreground: 0 0% 100%;
+    --spotify: 141 73% 30%;
+    --spotify-foreground: 0 0% 100%;
+    --radius: 0.75rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 30% 8%;
+      --foreground: 210 20% 94%;
+      --card: 222 26% 12%;
+      --card-foreground: 210 20% 94%;
+      --primary: 213 80% 70%;
+      --primary-foreground: 222 40% 10%;
+      --muted: 222 20% 18%;
+      --muted-foreground: 215 16% 70%;
+      --accent: 222 24% 20%;
+      --accent-foreground: 213 80% 80%;
+      --destructive: 0 70% 64%;
+      --destructive-foreground: 222 40% 10%;
+      --warning: 38 92% 62%;
+      --highlight: 45 90% 62%;
+      --highlight-foreground: 30 60% 10%;
+      --border: 222 18% 24%;
+      --input: 222 18% 30%;
+      --ring: 213 80% 62%;
+      --soundcloud: 22 90% 54%;
+      --soundcloud-foreground: 20 70% 8%;
+      --spotify: 141 62% 46%;
+      --spotify-foreground: 141 70% 6%;
+    }
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* One focus treatment everywhere, keyboard-only, visible on both schemes. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
