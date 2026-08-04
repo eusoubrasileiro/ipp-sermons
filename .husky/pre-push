@@ -1,40 +1,14 @@
 #!/usr/bin/env sh
-# Heavy gate (5-15min). Runs once before `git push`. Full safety net before
-# the branch leaves the machine. Six stages:
-#   1. tsc --noEmit       — typecheck across all workspaces
-#   2. pnpm lint          — Biome
-#   3. show-review-log    — print every reviewer verdict in the pushed range
-#                           so the human can eyeball before pushing
-#   4. coverage runs      — backend + frontend (paired with quality-gate)
-#   5. e2e tests          — Playwright (web) or Maestro (mobile) or
-#                           equivalent. Uncomment / replace per project.
-#   6. quality-gate +     — final metric ratchet + LLM review
-#      security-review
+# Heavy gate. Runs once before `git push` — the last check before the branch
+# leaves the machine.
 #
-# Mobile/Expo: replace the e2e block with `bash scripts/test-e2e.sh --build`.
-# Web monorepo: replace with playwright test + vitest e2e.
+# Adapted from the standards template, which shipped stages this repo has not
+# wired yet: `pnpm exec tsc --noEmit` finds no root tsconfig (workspaces own
+# their own, so typechecking must recurse), and show-review-log /
+# quality-gate / security-review all live in a `scripts/` directory that does
+# not exist here. Referencing them made the hook unpassable rather than strict.
+# Restore them individually as they are actually brought in.
 set -e
-pnpm exec tsc --noEmit
+pnpm typecheck
 pnpm lint
-
-echo ""
-echo "=== Security review log (commits being pushed) ==="
-node scripts/show-review-log.mjs
-echo "==================================================="
-echo "Inspect above. Ctrl+C to abort if anything looks wrong."
-
-# === project-specific e2e block ===========================================
-# Web (Vitest + Playwright):
-#   pnpm test:coverage
-#   pnpm test:e2e
-#   pnpm exec playwright test
-# Mobile (Maestro):
-#   bash scripts/test-e2e.sh --build
-# Replace below with your stack:
-pnpm test:coverage
-# pnpm test:e2e
-# pnpm exec playwright test
-# ==========================================================================
-
-pnpm quality-gate
-node scripts/security-review.mjs
+pnpm test
