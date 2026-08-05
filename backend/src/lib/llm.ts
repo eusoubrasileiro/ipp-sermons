@@ -10,21 +10,39 @@
  */
 
 /**
- * The workhorse for the per-sermon passes.
+ * The workhorse for the per-sermon passes: scripture extraction and topic
+ * labelling, ~460 calls each.
  *
- * Chosen for Portuguese quality and reliable structured output rather than
- * price: the whole corpus costs under two dollars to label at any current-
- * generation rate, so optimising the model down is optimising the wrong thing.
- * `google/gemini-2.5-flash-lite` is the drop-in fallback at a third the price.
+ * Both are mechanical work against a strict schema -- read what the preacher
+ * announced, or pick from a closed list -- so the job is reliable structured
+ * output at volume, not reasoning. This is the cheapest current-generation
+ * model that offers a 1M context and strict `json_schema`.
+ *
+ * `google/gemini-3.5-flash-lite` is the drop-in fallback if Portuguese output
+ * disappoints. Do NOT reach for the DeepSeek flash models here, cheap as they
+ * are: they are the one family with documented language drift
+ * (deepseek-ai/DeepSeek-V3 issues #1045, #1255, #1463), and this corpus is
+ * entirely Portuguese.
  */
-export const LLM_MODEL = "google/gemini-3.1-flash-lite";
+export const LLM_MODEL = "openai/gpt-5.6-luna";
 
 /**
  * For the one-shot passes whose output is committed as ground truth -- the
- * series taxonomy and the topic taxonomy. Both are a single call over a small
- * input, so the better model costs cents and is reviewed by a human once.
+ * series taxonomy and the topic taxonomy. One call over a small input, so the
+ * better model costs cents and a human reviews the result once.
+ *
+ * `qwen/qwen3.7-plus` was the first choice on evidence -- it is the only family
+ * with *measured* Brazilian-Portuguese strength rather than inferred, ranking
+ * 4th of 16 on Prosa, a benchmark of 1,000 real pt-BR conversations (arXiv
+ * 2605.01630), ahead of Gemini 3 Flash and GPT-4.1, and ahead of Brazil's own
+ * Sabia-4 on conversational Portuguese by 12 points (arXiv 2603.10213).
+ *
+ * It is not used, because it could not complete this call: every attempt failed
+ * through OpenRouter and the script died after the full retry budget. A model
+ * that will not answer is worth nothing regardless of its benchmark. Revisit if
+ * its availability improves.
  */
-export const LLM_MODEL_STRONG = "google/gemini-2.5-pro";
+export const LLM_MODEL_STRONG = "openai/gpt-5.6-luna";
 
 import { postJson, RetryableError } from "./openrouter.ts";
 
