@@ -1,6 +1,7 @@
 -- Browse facets: scripture, series, service type and topics.
 --
--- Applied after 001_hybrid_search.sql. Idempotent -- safe to re-run.
+-- Applied BEFORE 003_hybrid_search.sql, which filters on the columns this
+-- file adds to `sermons`. Idempotent -- safe to re-run.
 --
 -- Hand-written rather than emitted by `prisma migrate diff`, for the reason
 -- 000_schema.sql was hand-edited too: the CLI emits unguarded CREATE and ADD
