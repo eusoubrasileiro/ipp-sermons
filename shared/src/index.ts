@@ -65,6 +65,15 @@ export const SearchFiltersSchema = z.object({
 
 export type SearchFilters = z.infer<typeof SearchFiltersSchema>;
 
+/** Filter-only browsing: no query text, so it cannot go through the search route. */
+export const BrowseRequestSchema = z.object({
+  filtros: SearchFiltersSchema.optional(),
+  ordenar: z.enum(["data", "biblia", "serie"]).default("data"),
+  pagina: z.number().int().min(1).max(500).default(1),
+});
+
+export type BrowseRequest = z.infer<typeof BrowseRequestSchema>;
+
 export const SearchRequestSchema = z.object({
   query: z.string().trim().min(2, "A busca precisa de ao menos 2 caracteres").max(500),
   limit: z.number().int().min(1).max(50).default(10),

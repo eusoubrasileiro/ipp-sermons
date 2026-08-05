@@ -224,3 +224,78 @@ describe("POST /api/search — filtros", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("GET /api/facets", () => {
+  const stubFacets = () =>
+    ({
+      $queryRaw: vi.fn(async () => []),
+      sermon: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) },
+      sermonChunk: { count: vi.fn(async () => 0) },
+      suggestion: { create: vi.fn(async () => ({})) },
+    }) as unknown as PrismaClient;
+
+  it("returns every facet family, so the client fetches the tree once", async () => {
+    const app = createApp({ prisma: stubFacets(), embeddings: stubEmbeddings() });
+    const res = await app.request("/api/facets");
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown[]>;
+    for (const family of ["livros", "series", "pregadores", "datas", "tipos", "temas"]) {
+      expect(body).toHaveProperty(family);
+    }
+  });
+
+  it("does not leak an internal error to the browser", async () => {
+    const prisma = {
+      $queryRaw: vi.fn(async () => {
+        throw new Error("connection refused at 10.0.0.5");
+      }),
+    } as unknown as PrismaClient;
+
+    const res = await createApp({ prisma, embeddings: stubEmbeddings() }).request("/api/facets");
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("10.0.0.5");
+  });
+});
+
+describe("GET /api/sermons", () => {
+  const stubBrowse = () =>
+    ({
+      sermon: { count: vi.fn(async () => 3), findMany: vi.fn(async () => []) },
+      $queryRaw: vi.fn(async () => []),
+    }) as unknown as PrismaClient;
+
+  it("browses with no query at all", async () => {
+    // The point of this route: SearchRequestSchema needs two characters of
+    // query, and browsing by book has none.
+    const app = createApp({ prisma: stubBrowse(), embeddings: stubEmbeddings() });
+    const res = await app.request("/api/sermons?livros=efesios&capitulo=5");
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { total: number }).toMatchObject({ total: 3 });
+  });
+
+  it("reads a comma-separated facet as a list", async () => {
+    const prisma = stubBrowse();
+    const app = createApp({ prisma, embeddings: stubEmbeddings() });
+    await app.request("/api/sermons?pregadores=Reverendo%20Bruno%20Melo,Pastor%20Lucas%20Antunes");
+
+    const where = (prisma.sermon.count as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0]?.[0];
+    expect(JSON.stringify(where)).toContain("Lucas Antunes");
+  });
+
+  it("rejects an unknown sort order", async () => {
+    const app = createApp({ prisma: stubBrowse(), embeddings: stubEmbeddings() });
+    expect((await app.request("/api/sermons?ordenar=aleatorio")).status).toBe(400);
+  });
+
+  it("defaults to the newest first", async () => {
+    const prisma = stubBrowse();
+    await createApp({ prisma, embeddings: stubEmbeddings() }).request("/api/sermons");
+
+    const args = (prisma.sermon.findMany as unknown as { mock: { calls: unknown[][] } }).mock
+      .calls[0]?.[0];
+    expect(JSON.stringify(args)).toContain('"date":"desc"');
+  });
+});
