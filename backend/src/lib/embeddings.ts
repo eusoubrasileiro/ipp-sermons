@@ -11,6 +11,8 @@
  * pick for a Portuguese corpus.
  */
 
+import { FatalOpenRouterError, postJson, RetryableError } from "./openrouter.ts";
+
 export const EMBEDDING_MODEL = "google/gemini-embedding-001";
 
 /**
@@ -45,14 +47,12 @@ export function normalize(vec: number[]): number[] {
   return vec.map((x) => x / norm);
 }
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
 /**
  * An error that retrying cannot fix: a malformed request, or a response whose
  * shape violates the pgvector contract. Every attempt costs money, so these
  * bypass the retry loop entirely.
  */
-export class FatalEmbeddingError extends Error {
+export class FatalEmbeddingError extends FatalOpenRouterError {
   override readonly name = "FatalEmbeddingError";
 }
 
@@ -64,10 +64,11 @@ export type OpenRouterOptions = {
   /**
    * Per-attempt ceiling. Without this a dropped connection leaves fetch
    * pending forever: the indexer parks in ep_poll holding no socket, makes no
-   * progress, and never errors -- so the retry loop below never even runs.
-   * Observed for real partway through a full corpus run.
+   * progress, and never errors -- so the retry loop never even runs. Observed
+   * for real partway through a full corpus run.
    */
   timeoutMs?: number;
+  retryDelayMs?: number;
   fetchImpl?: typeof fetch;
 };
 
@@ -78,57 +79,37 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
     dimensions = EMBEDDING_DIMS,
     maxRetries = 5,
     timeoutMs = 60_000,
-    fetchImpl = fetch,
+    retryDelayMs,
+    fetchImpl,
   } = opts;
 
   return {
     async embed(inputs: string[]): Promise<number[][]> {
       if (inputs.length === 0) return [];
 
-      let lastError: Error | null = null;
-
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        if (attempt > 0) {
-          // Exponential backoff for rate limits and transient upstream errors.
-          await sleep(Math.min(2 ** attempt * 500, 16_000));
-        }
-
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-        try {
-          const res = await fetchImpl(OPENROUTER_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ model, input: inputs, dimensions }),
-            signal: controller.signal,
-          });
-
-          if (res.status === 429 || res.status >= 500) {
-            lastError = new Error(`OpenRouter ${res.status}: ${await res.text()}`);
-            continue;
-          }
-
-          if (!res.ok) {
-            // 4xx other than rate limiting is a request bug -- retrying wastes
-            // money and time, so surface it immediately.
-            throw new FatalEmbeddingError(`OpenRouter ${res.status}: ${await res.text()}`);
-          }
-
-          const body = (await res.json()) as {
+      return postJson(
+        {
+          url: OPENROUTER_URL,
+          apiKey,
+          body: { model, input: inputs, dimensions },
+          label: "embedding",
+          maxRetries,
+          timeoutMs,
+          ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
+          ...(fetchImpl === undefined ? {} : { fetchImpl }),
+        },
+        (payload) => {
+          const body = payload as {
             data?: { embedding: number[]; index?: number }[];
             error?: unknown;
           };
 
-          if (body.error) throw new Error(`OpenRouter error: ${JSON.stringify(body.error)}`);
+          if (body.error)
+            throw new RetryableError(`OpenRouter error: ${JSON.stringify(body.error)}`);
           if (!body.data || body.data.length !== inputs.length) {
-            lastError = new Error(
+            throw new RetryableError(
               `expected ${inputs.length} embeddings, got ${body.data?.length ?? 0}`,
             );
-            continue;
           }
 
           // The API may return rows out of order; `index` is authoritative.
@@ -143,17 +124,8 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
             }
             return normalize(row.embedding);
           });
-        } catch (err) {
-          // A wrong dimension count or a malformed request will not fix itself
-          // on retry, and every attempt is billed. Fail fast instead.
-          if (err instanceof FatalEmbeddingError) throw err;
-          lastError = err instanceof Error ? err : new Error(String(err));
-        } finally {
-          clearTimeout(timer);
-        }
-      }
-
-      throw new Error(`embedding failed after ${maxRetries} retries: ${lastError?.message}`);
+        },
+      );
     },
   };
 }
