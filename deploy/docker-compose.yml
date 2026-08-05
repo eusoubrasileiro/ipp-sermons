@@ -32,7 +32,14 @@ services:
   #
   # 000_schema.sql is generated from schema.prisma (prisma migrate diff) and
   # committed; 001 adds the pt_unaccent config, fts column, indexes and
-  # hybrid_search(). Both are idempotent, so re-running a deploy is safe.
+  # hybrid_search(), then the browse facets. All are idempotent, so re-running a
+  # deploy is safe. The loop applies every file in /sql in filename order rather
+  # than a hard coded list -- the list was already wrong once, and a migration
+  # that exists but is never applied fails silently in production.
+  #
+  # $$f, not $f: Compose interpolates $VAR itself before the shell ever sees
+  # the command, so a single $ would expand to nothing and psql would be handed
+  # an empty filename.
   #
   # Deliberately no Prisma CLI here. It is a devDependency that --prod strips,
   # and pulling it back in drags @prisma/engines and its own dependency chain
@@ -51,7 +58,7 @@ services:
       [
         "sh",
         "-c",
-        "psql -h db -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons} -v ON_ERROR_STOP=1 -f /sql/000_schema.sql && psql -h db -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons} -v ON_ERROR_STOP=1 -f /sql/001_hybrid_search.sql",
+        "for f in /sql/*.sql; do echo \"applying $$f\"; psql -h db -U ${POSTGRES_USER:-ipp} -d ${POSTGRES_DB:-ipp_sermons} -v ON_ERROR_STOP=1 -f \"$$f\" || exit 1; done",
       ]
     depends_on:
       db:

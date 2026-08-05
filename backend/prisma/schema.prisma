@@ -49,13 +49,121 @@ model Sermon {
   wordsMin     Float @map("words_min")
   sentencesMin Float @map("sentences_min")
 
-  chunks SermonChunk[]
+  /// Browse facets, derived offline from the title and committed under
+  /// data/facets/. They live on the row rather than in a join table because
+  /// each is single-valued, which lets hybrid_search() filter on them without
+  /// widening its candidate CTEs any further.
+  ///
+  /// These MUST stay in this schema even though 002_facets.sql also creates
+  /// them: anything Prisma does not know about, it deletes as drift on the
+  /// next `db push` — the same trap that eats the `fts` column, except here it
+  /// would take the derived data with it.
+  serviceType  String? @map("service_type")
+  seriesSlug   String? @map("series_slug")
+  seriesPart   Int?    @map("series_part")
+  /// Title with the leading date and event prefix stripped, for display.
+  displayTitle String? @map("display_title")
+
+  series     Series?            @relation(fields: [seriesSlug], references: [slug], onDelete: SetNull)
+  chunks     SermonChunk[]
+  scriptures SermonScripture[]
+  topics     SermonTopic[]
 
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([date])
   @@index([artist])
+  @@index([serviceType])
+  @@index([seriesSlug, seriesPart])
   @@map("sermons")
+}
+
+/// The 66-book canon. `canonOrder` is the only sort key the scripture index
+/// uses: an alphabetical Bible is unusable to anyone who knows it.
+model BibleBook {
+  slug       String @id
+  name       String
+  testament  String
+  canonOrder Int    @unique @map("canon_order")
+  chapters   Int
+
+  sermons SermonScripture[]
+
+  @@map("bible_books")
+}
+
+/// Courses and events. Self-referential so the Westminster chapters hang under
+/// the confession that heads them.
+model Series {
+  slug        String  @id
+  name        String
+  kind        String
+  parentSlug  String? @map("parent_slug")
+  description String  @default("")
+  sermonCount Int     @default(0) @map("sermon_count")
+
+  parent   Series?  @relation("SeriesParent", fields: [parentSlug], references: [slug], onDelete: SetNull)
+  children Series[] @relation("SeriesParent")
+  sermons  Sermon[]
+
+  @@index([parentSlug])
+  @@map("series")
+}
+
+/// Two-level taxonomy: the group carries what Desiring God splits into a
+/// separate "themes" page, the leaf is the topic. One structure is right for
+/// 456 sermons; two would be ceremony.
+model Topic {
+  slug        String @id
+  name        String
+  groupSlug   String @map("group_slug")
+  groupName   String @map("group_name")
+  description String @default("")
+
+  sermons SermonTopic[]
+
+  @@index([groupSlug])
+  @@map("topics")
+}
+
+/// One row per (sermon, chapter). A lesson on "Gênesis 12-50" covers 39
+/// chapters and must be findable from any of them, so ranges are expanded at
+/// load time.
+///
+/// `chapter` is 0, not null, when a title names a book without a chapter
+/// ("EBD - 1 Samuel"). A sentinel rather than NULL because the row's identity
+/// includes the chapter, and Postgres treats NULLs in a unique index as
+/// distinct — two book-level rows for the same sermon would both be allowed.
+model SermonScripture {
+  sermonId   String  @map("sermon_id")
+  bookSlug   String  @map("book_slug")
+  chapter    Int     @default(0)
+  verseStart Int?    @map("verse_start")
+  verseEnd   Int?    @map("verse_end")
+  /// 'titulo' or 'transcricao' — kept so a bad extraction pass can be undone
+  /// without touching what the titles established.
+  source     String  @default("titulo")
+  isPrimary  Boolean @default(true) @map("is_primary")
+
+  sermon Sermon    @relation(fields: [sermonId], references: [id], onDelete: Cascade)
+  book   BibleBook @relation(fields: [bookSlug], references: [slug], onDelete: Cascade)
+
+  @@id([sermonId, bookSlug, chapter])
+  @@index([bookSlug, chapter])
+  @@map("sermon_scriptures")
+}
+
+model SermonTopic {
+  sermonId   String @map("sermon_id")
+  topicSlug  String @map("topic_slug")
+  confidence Float  @default(1.0)
+
+  sermon Sermon @relation(fields: [sermonId], references: [id], onDelete: Cascade)
+  topic  Topic  @relation(fields: [topicSlug], references: [slug], onDelete: Cascade)
+
+  @@id([sermonId, topicSlug])
+  @@index([topicSlug])
+  @@map("sermon_topics")
 }
 
 model SermonChunk {

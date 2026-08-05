@@ -16,7 +16,9 @@
     "eval": "node --experimental-strip-types src/scripts/eval-golden.ts",
     "verify:corpus": "node --experimental-strip-types src/scripts/verify-corpus.ts",
     "derive:facets": "node --experimental-strip-types src/scripts/derive-facets.ts",
-    "canonicalize:series": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/canonicalize-series.ts"
+    "canonicalize:series": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/canonicalize-series.ts",
+    "index:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/index-facets.ts",
+    "verify:facets": "node --experimental-strip-types src/scripts/verify-facets.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

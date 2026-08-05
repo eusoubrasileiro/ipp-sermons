@@ -88,12 +88,14 @@ CREATE INDEX IF NOT EXISTS sermons_series_idx       ON sermons (series_slug, ser
 -- genuinely covers 39 chapters and has to be findable from any of them, so the
 -- range is expanded at load time rather than stored as bounds.
 --
--- `chapter` is nullable: a title may name a book without a chapter ("EBD -
--- 1 Samuel"), which is still a usable facet at the book level.
+-- `chapter` is 0, not NULL, when a title names a book without a chapter
+-- ("EBD - 1 Samuel"). A sentinel rather than NULL because the row's identity
+-- includes the chapter, and Postgres treats NULLs in a unique index as
+-- distinct -- two book-level rows for the same sermon would both be allowed.
 CREATE TABLE IF NOT EXISTS sermon_scriptures (
   sermon_id   text    NOT NULL REFERENCES sermons (id) ON DELETE CASCADE,
   book_slug   text    NOT NULL REFERENCES bible_books (slug) ON DELETE CASCADE,
-  chapter     int,
+  chapter     int     NOT NULL DEFAULT 0,
   verse_start int,
   verse_end   int,
   -- 'titulo' when the title stated it, 'transcricao' when it was recovered
@@ -103,9 +105,10 @@ CREATE TABLE IF NOT EXISTS sermon_scriptures (
   is_primary  boolean NOT NULL DEFAULT true
 );
 
--- COALESCE, because a NULL chapter must still deduplicate against itself.
-CREATE UNIQUE INDEX IF NOT EXISTS sermon_scriptures_unique_idx
-  ON sermon_scriptures (sermon_id, book_slug, COALESCE(chapter, -1));
+ALTER TABLE sermon_scriptures
+  DROP CONSTRAINT IF EXISTS sermon_scriptures_pkey;
+ALTER TABLE sermon_scriptures
+  ADD PRIMARY KEY (sermon_id, book_slug, chapter);
 
 CREATE INDEX IF NOT EXISTS sermon_scriptures_book_idx    ON sermon_scriptures (book_slug, chapter);
 CREATE INDEX IF NOT EXISTS sermon_scriptures_sermon_idx  ON sermon_scriptures (sermon_id);

@@ -65,11 +65,12 @@ async function main(): Promise<void> {
 
     const chapters = chaptersOf(ref);
     if (chapters.length === 0) {
-      // The title names a book but no chapter -- still a usable facet.
+      // The title names a book but no chapter -- still a usable facet, and
+      // 0 rather than null so the row has a complete identity.
       scriptureRows.push({
         sermon_id: sermon.id,
         book_slug: ref.bookSlug,
-        chapter: null,
+        chapter: 0,
         verse_start: null,
         verse_end: null,
         source: "titulo",
