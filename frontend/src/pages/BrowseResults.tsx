@@ -20,7 +20,8 @@ export function BrowseResults({
   /** Already serialised: a primitive, so the fetch effect depends on it
    * directly instead of on an object literal rebuilt every render. */
   query: string;
-  voltar: { to: string; label: string };
+  /** Absent on the search page, where the filter chips are the way back. */
+  voltar?: { to: string; label: string } | undefined;
 }) {
   const [sermons, setSermons] = useState<BrowseSermon[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,9 +47,11 @@ export function BrowseResults({
 
   return (
     <div>
-      <Link to={voltar.to} className="text-sm text-muted-foreground hover:text-foreground">
-        ← {voltar.label}
-      </Link>
+      {voltar ? (
+        <Link to={voltar.to} className="text-sm text-muted-foreground hover:text-foreground">
+          ← {voltar.label}
+        </Link>
+      ) : null}
       <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">{titulo}</h1>
       {subtitulo ? <p className="text-sm text-muted-foreground">{subtitulo}</p> : null}
 

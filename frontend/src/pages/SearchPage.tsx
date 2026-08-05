@@ -1,61 +1,78 @@
-import type { SearchResult } from "@ipp/shared";
-import { useState } from "react";
-import { searchSermons } from "../api.ts";
+import type { SearchFilters } from "@ipp/shared";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { FacetChips } from "../components/FacetChips.tsx";
+import { FilterPicker } from "../components/FilterPicker.tsx";
 import { SearchForm } from "../components/SearchForm.tsx";
 import { SermonCard } from "../components/SermonCard.tsx";
 import { EmptyState, ErrorState, IntroState, ResultsSkeleton } from "../components/States.tsx";
 import { SuggestionBox } from "../components/SuggestionBox.tsx";
+import type { Chip, DimensionKey } from "../lib/facet-labels.ts";
+import {
+  addFilter,
+  countFilters,
+  dropFilter,
+  dropYear,
+  parseFilters,
+  toSearchParams,
+  withYear,
+} from "../lib/facet-params.ts";
 import { groupBySermon } from "../lib/group.ts";
+import { useSearch } from "../lib/useSearch.ts";
+import { BrowseResults } from "./BrowseResults.tsx";
 
 /**
- * The search page: still the hero of the site.
+ * The search page: still the hero of the site, now with filters that compose
+ * with the query rather than replacing it.
  *
- * 456 sermons is small enough that most people will type rather than browse,
- * so search keeps the top of the page and the facet indexes sit behind the tab
- * bar as a second door.
+ * Everything lives in the address bar -- query and chips both -- so a narrowed
+ * search survives a reload and can be forwarded to someone in WhatsApp. That
+ * is also why there is no filter state in this component: the URL is it.
  */
-
-type Status = "idle" | "loading" | "done" | "error";
-
 export function SearchPage() {
-  const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState("");
-  const [tookMs, setTookMs] = useState(0);
+  const [params, setParams] = useSearchParams();
+  const query = params.get("q") ?? "";
+  const filtros = parseFilters(params);
+  const filterQuery = toSearchParams("", filtros).toString();
 
-  async function runSearch(q: string): Promise<void> {
-    const trimmed = q.trim();
-    if (trimmed.length < 2) return;
+  // The box is a draft until submitted; the URL only moves on a real search.
+  const [draft, setDraft] = useState(query);
+  useEffect(() => setDraft(query), [query]);
 
-    setStatus("loading");
-    setError("");
-    setSubmitted(trimmed);
-
-    try {
-      const res = await searchSermons(trimmed);
-      setResults(res.results);
-      setTookMs(res.tookMs);
-      setStatus("done");
-    } catch (err) {
-      setResults([]);
-      setError(err instanceof Error ? err.message : "A busca falhou.");
-      setStatus("error");
-    }
-  }
-
+  const { status, results, tookMs, error, retry } = useSearch(query, filterQuery);
   const groups = groupBySermon(results);
+  const filtrado = countFilters(filtros) > 0;
+
+  const apply = (q: string, next: SearchFilters): void => setParams(toSearchParams(q, next));
+
+  const add = (key: DimensionKey, value: string): void =>
+    apply(query, key === "ano" ? withYear(filtros, Number(value)) : addFilter(filtros, key, value));
+
+  const remove = (chip: Chip): void =>
+    apply(
+      query,
+      chip.key === "ano" ? dropYear(filtros) : dropFilter(filtros, chip.key, chip.value),
+    );
+
+  // Chips with nothing typed are still a request: show what they select rather
+  // than sit on the intro screen. The search route cannot serve it -- it needs
+  // two characters of query -- so this is the plain listing.
+  const listando = query.trim().length < 2 && filtrado;
 
   return (
     <>
       <SearchForm
-        query={query}
-        onQueryChange={setQuery}
-        onSearch={(q) => void runSearch(q)}
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={(q) => apply(q, filtros)}
         loading={status === "loading"}
-        showExamples={status !== "done" || groups.length === 0}
+        showExamples={!filtrado && (status !== "done" || groups.length === 0)}
       />
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {filtrado ? <FacetChips filtros={filtros} onRemove={remove} /> : null}
+        <FilterPicker filtros={filtros} onAdd={add} />
+      </div>
 
       {/* Announced to screen readers so a search that returns nothing is not silent. */}
       <p aria-live="polite" className="sr-only">
@@ -66,12 +83,20 @@ export function SearchPage() {
       </p>
 
       <main className="mt-4">
-        {status === "idle" && <IntroState />}
+        {listando ? <BrowseResults titulo="Sermões filtrados" query={filterQuery} /> : null}
+
+        {!listando && status === "idle" && <IntroState />}
         {status === "loading" && <ResultsSkeleton />}
-        {status === "error" && (
-          <ErrorState message={error} onRetry={() => void runSearch(submitted || query)} />
+        {status === "error" && <ErrorState message={error} onRetry={retry} />}
+
+        {status === "done" && groups.length === 0 && (
+          <EmptyState
+            query={query}
+            acao={
+              filtrado ? { label: "Limpar os filtros", onClick: () => apply(query, {}) } : undefined
+            }
+          />
         )}
-        {status === "done" && groups.length === 0 && <EmptyState query={submitted} />}
 
         {status === "done" && groups.length > 0 && (
           <>
@@ -80,7 +105,7 @@ export function SearchPage() {
             </p>
             <div className="space-y-3">
               {groups.map((g) => (
-                <SermonCard key={g.top.id} group={g} query={submitted} />
+                <SermonCard key={g.top.id} group={g} query={query} />
               ))}
             </div>
           </>

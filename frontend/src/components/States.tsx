@@ -25,15 +25,36 @@ export function ResultsSkeleton() {
   );
 }
 
-export function EmptyState({ query }: { query: string }) {
+export function EmptyState({
+  query,
+  acao,
+}: {
+  query: string;
+  /**
+   * The way out, when there is one. A search narrowed by chips usually returns
+   * nothing because of the chips, and telling someone to "try broader words"
+   * when the real cause is a filter they set is a dead end.
+   */
+  acao?: { label: string; onClick: () => void } | undefined;
+}) {
   return (
     <div className="rounded-lg border border-dashed border-border bg-card/50 p-6 text-center">
       <EmptyIcon className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 font-medium">Nenhum sermão encontrado para “{query}”.</p>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-        Tente palavras mais gerais (“perdão” em vez de “perdoar o irmão”), o nome de um livro da
-        Bíblia, ou o nome do pregador.
+        {acao
+          ? "Os filtros podem estar estreitos demais. Remova um deles acima, ou comece de novo."
+          : "Tente palavras mais gerais (“perdão” em vez de “perdoar o irmão”), o nome de um livro da Bíblia, ou o nome do pregador."}
       </p>
+      {acao ? (
+        <button
+          type="button"
+          onClick={acao.onClick}
+          className="mt-4 min-h-11 rounded-md border border-border bg-card px-4 text-sm font-medium transition hover:bg-accent hover:text-accent-foreground"
+        >
+          {acao.label}
+        </button>
+      ) : null}
     </div>
   );
 }

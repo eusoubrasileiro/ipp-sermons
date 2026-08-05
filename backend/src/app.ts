@@ -1,9 +1,16 @@
-import { BrowseRequestSchema, SearchRequestSchema, SuggestionRequestSchema } from "@ipp/shared";
+import {
+  BrowseRequestSchema,
+  SearchFiltersSchema,
+  SearchRequestSchema,
+  SuggestionRequestSchema,
+} from "@ipp/shared";
 import type { PrismaClient } from "@prisma/client";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { facetCounts } from "./lib/browse/counts.ts";
 import { facetTree } from "./lib/browse/facets.ts";
 import { type BrowseSort, listSermons } from "./lib/browse/list.ts";
+import { filtersFromQuery } from "./lib/browse/query.ts";
 import type { EmbeddingsClient } from "./lib/embeddings.ts";
 import type { Reranker } from "./lib/rerank.ts";
 import { search } from "./lib/search.ts";
@@ -51,6 +58,26 @@ export function createApp(deps: AppDeps): Hono {
   });
 
   /**
+   * The same counts, narrowed to whatever is already filtered.
+   *
+   * Feeds the "+ filtro" popover, which must never offer a choice that empties
+   * the result — so it cannot reuse /api/facets, whose totals are archive-wide.
+   */
+  app.get("/api/facets/counts", async (c) => {
+    const parsed = SearchFiltersSchema.safeParse(filtersFromQuery(c.req.query()));
+    if (!parsed.success) {
+      return c.json({ error: parsed.error.issues[0]?.message ?? "filtro inválido" }, 400);
+    }
+
+    try {
+      return c.json(await facetCounts(deps.prisma, parsed.data));
+    } catch (err) {
+      console.error("[facet-counts] failed", err);
+      return c.json({ error: "Não foi possível carregar os índices." }, 500);
+    }
+  });
+
+  /**
    * A filtered listing with no query text.
    *
    * Separate from POST /api/search because SearchRequestSchema requires at
@@ -59,19 +86,9 @@ export function createApp(deps: AppDeps): Hono {
    */
   app.get("/api/sermons", async (c) => {
     const q = c.req.query();
-    const asArray = (v: string | undefined) => (v ? v.split(",").filter(Boolean) : undefined);
 
     const parsed = BrowseRequestSchema.safeParse({
-      filtros: {
-        pregadores: asArray(q.pregadores),
-        tipos: asArray(q.tipos),
-        series: asArray(q.series),
-        livros: asArray(q.livros),
-        temas: asArray(q.temas),
-        capitulo: q.capitulo ? Number.parseInt(q.capitulo, 10) : undefined,
-        de: q.de,
-        ate: q.ate,
-      },
+      filtros: filtersFromQuery(q),
       ordenar: q.ordenar,
       pagina: q.pagina ? Number.parseInt(q.pagina, 10) : undefined,
     });

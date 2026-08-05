@@ -1,7 +1,7 @@
-import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { FACETS, routeTo } from "./browse-fixtures.tsx";
+import { routeTo } from "./browse-fixtures.tsx";
+import { FACETS } from "./facet-fixtures.ts";
 import { okResponse } from "./test-fixtures.tsx";
 
 /**

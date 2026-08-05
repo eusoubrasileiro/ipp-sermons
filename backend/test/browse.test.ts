@@ -168,6 +168,17 @@ describe("facetTree — mapping", () => {
     expect(tree.tipos[0]).toMatchObject({ slug: "culto", total: 257 });
     expect(tree.temas[0]).toMatchObject({ slug: "ansiedade", grupoNome: "Vida Cristã", total: 4 });
   });
+
+  it("carries the raw preacher name a filter can be built from", async () => {
+    // "Outros" is a display grouping, not part of anyone's name: rejoining it
+    // to the person would filter for a preacher who does not exist.
+    const prisma = stubQueries({
+      "FROM sermons GROUP BY artist": [{ artist: "Paula Ximenes", total: 2n }],
+    });
+
+    const [preacher] = (await facetTree(prisma)).pregadores;
+    expect(preacher).toMatchObject({ artist: "Paula Ximenes", titulo: "Outros" });
+  });
 });
 
 describe("listSermons", () => {

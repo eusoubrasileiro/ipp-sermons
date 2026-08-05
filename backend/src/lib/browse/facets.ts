@@ -31,7 +31,18 @@ type SeriesFacet = {
   total: number;
 };
 
-type PreacherFacet = { slug: string; nome: string; titulo: string; total: number };
+/**
+ * `artist` is the raw column and the only thing a filter may be built from:
+ * `titulo` is "Outros" for the one preacher with no honorific, so joining the
+ * two back together would produce a name that matches nothing.
+ */
+type PreacherFacet = {
+  slug: string;
+  artist: string;
+  nome: string;
+  titulo: string;
+  total: number;
+};
 type DateFacet = { ano: number; total: number; meses: { mes: number; total: number }[] };
 type TypeFacet = { slug: string; total: number };
 type TopicFacet = {
@@ -150,6 +161,7 @@ async function preacherFacets(prisma: PrismaClient): Promise<PreacherFacet[]> {
 
   return rows.map((r) => ({
     slug: slugify(r.artist),
+    artist: r.artist,
     total: num(r.total),
     ...splitPreacher(r.artist),
   }));

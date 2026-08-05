@@ -1,12 +1,16 @@
-import type { SearchResponse } from "@ipp/shared";
+import type { SearchFilters, SearchResponse } from "@ipp/shared";
 
 /** Thin API client. Same origin in production; Vite proxies /api in dev. */
 
-export async function searchSermons(query: string, limit = 10): Promise<SearchResponse> {
+export async function searchSermons(
+  query: string,
+  filtros: SearchFilters = {},
+  limit = 10,
+): Promise<SearchResponse> {
   const res = await fetch("/api/search", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, limit }),
+    body: JSON.stringify({ query, limit, filtros }),
   });
 
   if (!res.ok) {
@@ -44,7 +48,8 @@ export type FacetTree = {
     descricao: string;
     total: number;
   }[];
-  pregadores: { slug: string; nome: string; titulo: string; total: number }[];
+  /** `artist` is the raw name the filters compare against; `titulo` only groups. */
+  pregadores: { slug: string; artist: string; nome: string; titulo: string; total: number }[];
   datas: { ano: number; total: number; meses: { mes: number; total: number }[] }[];
   tipos: { slug: string; total: number }[];
   temas: { slug: string; nome: string; grupoSlug: string; grupoNome: string; total: number }[];
@@ -54,6 +59,28 @@ export async function fetchFacets(): Promise<FacetTree> {
   const res = await fetch("/api/facets");
   if (!res.ok) throw new Error("Não foi possível carregar os índices.");
   return (await res.json()) as FacetTree;
+}
+
+/**
+ * The same facets counted under the filters already chosen.
+ *
+ * What the "+ filtro" popover shows, so that no option on offer leads to an
+ * empty page. Keyed by the value the filter uses, not by slug.
+ */
+export type FacetCounts = {
+  pregadores: Record<string, number>;
+  tipos: Record<string, number>;
+  series: Record<string, number>;
+  livros: Record<string, number>;
+  temas: Record<string, number>;
+  anos: Record<string, number>;
+  total: number;
+};
+
+export async function fetchFacetCounts(query: string): Promise<FacetCounts> {
+  const res = await fetch(`/api/facets/counts?${query}`);
+  if (!res.ok) throw new Error("Não foi possível carregar os índices.");
+  return (await res.json()) as FacetCounts;
 }
 
 export type BrowseSermon = {

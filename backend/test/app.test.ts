@@ -299,3 +299,51 @@ describe("GET /api/sermons", () => {
     expect(JSON.stringify(args)).toContain('"date":"desc"');
   });
 });
+
+describe("GET /api/facets/counts", () => {
+  const sermonRow = (over: Record<string, unknown> = {}) => ({
+    artist: "Reverendo Bruno Melo",
+    serviceType: "culto",
+    seriesSlug: null,
+    date: new Date("2024-03-17T00:00:00Z"),
+    scriptures: [{ bookSlug: "efesios", chapter: 5 }],
+    topics: [],
+    ...over,
+  });
+
+  const stubCounts = (rows: unknown[]) =>
+    ({ sermon: { findMany: vi.fn(async () => rows) } }) as unknown as PrismaClient;
+
+  it("narrows the counts to the filters already chosen", async () => {
+    const prisma = stubCounts([sermonRow(), sermonRow({ artist: "Pastor Lucas Antunes" })]);
+    const app = createApp({ prisma, embeddings: stubEmbeddings() });
+
+    const res = await app.request("/api/facets/counts?pregadores=Reverendo%20Bruno%20Melo");
+    const body = (await res.json()) as { total: number; livros: Record<string, number> };
+
+    expect(res.status).toBe(200);
+    expect(body.total).toBe(1);
+    expect(body.livros).toEqual({ efesios: 1 });
+  });
+
+  it("rejects a chapter outside the range any book has", async () => {
+    const app = createApp({ prisma: stubCounts([]), embeddings: stubEmbeddings() });
+    expect((await app.request("/api/facets/counts?capitulo=999")).status).toBe(400);
+  });
+
+  it("keeps the database error off the wire", async () => {
+    const prisma = {
+      sermon: {
+        findMany: vi.fn(async () => {
+          throw new Error("connect ECONNREFUSED 10.0.0.5:5432");
+        }),
+      },
+    } as unknown as PrismaClient;
+
+    const res = await createApp({ prisma, embeddings: stubEmbeddings() }).request(
+      "/api/facets/counts",
+    );
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("10.0.0.5");
+  });
+});
