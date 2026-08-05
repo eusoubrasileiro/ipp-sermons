@@ -1,52 +1,21 @@
-import type { SearchResult } from "@ipp/shared";
-import { useState } from "react";
-import { searchSermons } from "./api.ts";
-import { SearchForm } from "./components/SearchForm.tsx";
-import { SermonCard } from "./components/SermonCard.tsx";
-import { EmptyState, ErrorState, IntroState, ResultsSkeleton } from "./components/States.tsx";
-import { SuggestionBox } from "./components/SuggestionBox.tsx";
-import { groupBySermon } from "./lib/group.ts";
+import { Route, Routes } from "react-router-dom";
+import { FacetNav } from "./components/FacetNav.tsx";
+import { BiblePage } from "./pages/BiblePage.tsx";
+import { DatesPage } from "./pages/DatesPage.tsx";
+import { PreachersPage } from "./pages/PreachersPage.tsx";
+import { SearchPage } from "./pages/SearchPage.tsx";
+import { SeriesPage } from "./pages/SeriesPage.tsx";
+import { TopicsPage } from "./pages/TopicsPage.tsx";
 
 /**
- * Single-page sermon search for Igreja Presbiteriana Peregrinos.
+ * The shell: header, tab bar, and whichever page the URL names.
  *
- * Replaces a 5 KB static page, so it stays deliberately small: a search box,
- * result cards, and the feedback box the old server had. No router, no state
- * library, no component framework beyond Tailwind tokens.
+ * Every facet is addressable -- /biblia/efesios/5, /series/o-livro-dos-reis --
+ * so a member can send a passage or a whole course to someone in WhatsApp and
+ * have it open where they left it. That is the reason for a router in a site
+ * this small.
  */
-
-type Status = "idle" | "loading" | "done" | "error";
-
 export function App() {
-  const [query, setQuery] = useState("");
-  const [submitted, setSubmitted] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState("");
-  const [tookMs, setTookMs] = useState(0);
-
-  async function runSearch(q: string): Promise<void> {
-    const trimmed = q.trim();
-    if (trimmed.length < 2) return;
-
-    setStatus("loading");
-    setError("");
-    setSubmitted(trimmed);
-
-    try {
-      const res = await searchSermons(trimmed);
-      setResults(res.results);
-      setTookMs(res.tookMs);
-      setStatus("done");
-    } catch (err) {
-      setResults([]);
-      setError(err instanceof Error ? err.message : "A busca falhou.");
-      setStatus("error");
-    }
-  }
-
-  const groups = groupBySermon(results);
-
   return (
     <div className="min-h-dvh">
       <div className="mx-auto max-w-3xl px-4 pb-12">
@@ -57,45 +26,26 @@ export function App() {
           </p>
         </header>
 
-        <SearchForm
-          query={query}
-          onQueryChange={setQuery}
-          onSearch={(q) => void runSearch(q)}
-          loading={status === "loading"}
-          showExamples={status !== "done" || groups.length === 0}
-        />
+        <FacetNav />
 
-        {/* Announced to screen readers so a search that returns nothing is not silent. */}
-        <p aria-live="polite" className="sr-only">
-          {status === "loading" ? "Buscando…" : ""}
-          {status === "done"
-            ? `${groups.length} ${groups.length === 1 ? "sermão encontrado" : "sermões encontrados"}`
-            : ""}
-        </p>
-
-        <main className="mt-4">
-          {status === "idle" && <IntroState />}
-          {status === "loading" && <ResultsSkeleton />}
-          {status === "error" && (
-            <ErrorState message={error} onRetry={() => void runSearch(submitted || query)} />
-          )}
-          {status === "done" && groups.length === 0 && <EmptyState query={submitted} />}
-
-          {status === "done" && groups.length > 0 && (
-            <>
-              <p className="mb-3 text-xs text-muted-foreground">
-                {groups.length} {groups.length === 1 ? "sermão" : "sermões"} · {tookMs} ms
-              </p>
-              <div className="space-y-3">
-                {groups.map((g) => (
-                  <SermonCard key={g.top.id} group={g} query={submitted} />
-                ))}
-              </div>
-            </>
-          )}
+        <main className="mt-5">
+          <Routes>
+            <Route path="/" element={<SearchPage />} />
+            <Route path="/temas" element={<TopicsPage />} />
+            <Route path="/temas/:slug" element={<TopicsPage />} />
+            <Route path="/biblia" element={<BiblePage />} />
+            <Route path="/biblia/:livro" element={<BiblePage />} />
+            <Route path="/biblia/:livro/:capitulo" element={<BiblePage />} />
+            <Route path="/series" element={<SeriesPage />} />
+            <Route path="/series/:slug" element={<SeriesPage />} />
+            <Route path="/pregadores" element={<PreachersPage />} />
+            <Route path="/pregadores/:slug" element={<PreachersPage />} />
+            <Route path="/datas" element={<DatesPage />} />
+            <Route path="/datas/:ano" element={<DatesPage />} />
+            <Route path="/datas/:ano/:mes" element={<DatesPage />} />
+            <Route path="*" element={<SearchPage />} />
+          </Routes>
         </main>
-
-        <SuggestionBox />
       </div>
     </div>
   );
