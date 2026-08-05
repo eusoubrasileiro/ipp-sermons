@@ -1,0 +1,67 @@
+order,slug,name,testament,chapters,abbrevs,aliases
+1,genesis,Gênesis,AT,50,Gn|Gen,
+2,exodo,Êxodo,AT,40,Ex|Êx,
+3,levitico,Levítico,AT,27,Lv,
+4,numeros,Números,AT,36,Nm|Num,
+5,deuteronomio,Deuteronômio,AT,34,Dt|Deut,
+6,josue,Josué,AT,24,Js,
+7,juizes,Juízes,AT,21,Jz,
+8,rute,Rute,AT,4,Rt,Ruth
+9,1-samuel,1 Samuel,AT,31,1Sm|1Sam,
+10,2-samuel,2 Samuel,AT,24,2Sm|2Sam,
+11,1-reis,1 Reis,AT,22,1Rs|1Re,
+12,2-reis,2 Reis,AT,25,2Rs|2Re,
+13,1-cronicas,1 Crônicas,AT,29,1Cr|1Cro,
+14,2-cronicas,2 Crônicas,AT,36,2Cr|2Cro,
+15,esdras,Esdras,AT,10,Ed|Esd,
+16,neemias,Neemias,AT,13,Ne|Nee,
+17,ester,Ester,AT,10,Et|Est,
+18,jo,Jó,AT,42,,
+19,salmos,Salmos,AT,150,Sl|Slm,Salmo|Saltério
+20,proverbios,Provérbios,AT,31,Pv|Prov,
+21,eclesiastes,Eclesiastes,AT,12,Ec|Ecl,Coélet
+22,cantares,Cantares,AT,8,Ct|Cnt,Cânticos|Cântico dos Cânticos|Cantares de Salomão
+23,isaias,Isaías,AT,66,Is,
+24,jeremias,Jeremias,AT,52,Jr|Jer,
+25,lamentacoes,Lamentações,AT,5,Lm|Lam,Lamentações de Jeremias
+26,ezequiel,Ezequiel,AT,48,Ez|Eze,
+27,daniel,Daniel,AT,12,Dn|Dan,
+28,oseias,Oseias,AT,14,Os,Oséias
+29,joel,Joel,AT,3,Jl,
+30,amos,Amós,AT,9,Am,
+31,obadias,Obadias,AT,1,Ob,
+32,jonas,Jonas,AT,4,Jn,
+33,miqueias,Miqueias,AT,7,Mq,Miquéias
+34,naum,Naum,AT,3,Na,
+35,habacuque,Habacuque,AT,3,Hc|Hab,
+36,sofonias,Sofonias,AT,3,Sf|Sof,
+37,ageu,Ageu,AT,2,Ag,
+38,zacarias,Zacarias,AT,14,Zc|Zac,
+39,malaquias,Malaquias,AT,4,Ml|Mal,
+40,mateus,Mateus,NT,28,Mt,
+41,marcos,Marcos,NT,16,Mc,
+42,lucas,Lucas,NT,24,Lc,
+43,joao,João,NT,21,Jo,Evangelho de João
+44,atos,Atos,NT,28,At,Atos dos Apóstolos
+45,romanos,Romanos,NT,16,Rm|Rom,
+46,1-corintios,1 Coríntios,NT,16,1Co|1Cor,
+47,2-corintios,2 Coríntios,NT,13,2Co|2Cor,
+48,galatas,Gálatas,NT,6,Gl|Gal,
+49,efesios,Efésios,NT,6,Ef,
+50,filipenses,Filipenses,NT,4,Fp|Fil,
+51,colossenses,Colossenses,NT,4,Cl|Col,
+52,1-tessalonicenses,1 Tessalonicenses,NT,5,1Ts|1Tes,
+53,2-tessalonicenses,2 Tessalonicenses,NT,3,2Ts|2Tes,
+54,1-timoteo,1 Timóteo,NT,6,1Tm|1Tim,
+55,2-timoteo,2 Timóteo,NT,4,2Tm|2Tim,
+56,tito,Tito,NT,3,Tt,
+57,filemom,Filemom,NT,1,Fm|Flm,Filemon
+58,hebreus,Hebreus,NT,13,Hb|Heb,
+59,tiago,Tiago,NT,5,Tg,
+60,1-pedro,1 Pedro,NT,5,1Pe|1Pd,
+61,2-pedro,2 Pedro,NT,3,2Pe|2Pd,
+62,1-joao,1 João,NT,5,1Jo,
+63,2-joao,2 João,NT,1,2Jo,
+64,3-joao,3 João,NT,1,3Jo,
+65,judas,Judas,NT,1,Jd,Epístola de Judas
+66,apocalipse,Apocalipse,NT,22,Ap|Apoc,Revelação
