@@ -68,6 +68,26 @@ services:
       - ipp_internal
     restart: "no"
 
+  # Loads the committed facet tables (data/facets/*.csv, which ship inside the
+  # image) into Postgres after the migrations have run.
+  #
+  # A service rather than a documented post-deploy command, because the failure
+  # mode of forgetting it is silent: every browse page renders, empty, and the
+  # health check still passes. Idempotent -- every write is an upsert or a
+  # replace -- so re-running a deploy costs a second and changes nothing.
+  facets:
+    image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
+    container_name: ipp-sermons-facets
+    env_file: .env
+    command: ["node", "dist/scripts/index-facets.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 256m
+    networks:
+      - ipp_internal
+    restart: "no"
+
   app:
     image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
     container_name: ipp-sermons-app
@@ -92,6 +112,8 @@ services:
       retries: 3
       start_period: 20s
     depends_on:
+      facets:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       migrate:
