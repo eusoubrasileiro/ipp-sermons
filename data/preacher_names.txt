@@ -27,3 +27,10 @@ Reverendo,Orebe Quaresma,Reverendo Orebe Quaresma
 Reverendo,Gustavo Quintela,Reverendo Gustavo Quintela
 Pastor,Douglas Lima,Pastor Douglas Lima
 Reverendo,Daniel,Reverendo Daniel
+Pastor,Davi Charles Gomes,Pastor Davi Charles Gomes
+Presbítero,Éder Mota,Presbítero Éder Mota
+Seminarista,Felipe Ricieri,Seminarista Felipe Ricieri
+Diácono,Helbert Mendes,Diácono Helbert Mendes
+Reverendo,Saulo,Reverendo Saulo
+Missionário,Eurico Lopes,Missionário Eurico Lopes
+,Paula Ximenes,Paula Ximenes
