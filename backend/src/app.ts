@@ -39,11 +39,11 @@ export function createApp(deps: AppDeps): Hono {
       return c.json({ error: parsed.error.issues[0]?.message ?? "consulta inválida" }, 400);
     }
 
-    const { query, limit } = parsed.data;
+    const { query, limit, filtros } = parsed.data;
     const started = Date.now();
 
     try {
-      const { results, reranked } = await search(deps, query, limit);
+      const { results, reranked } = await search(deps, query, limit, filtros);
       return c.json({ query, results, reranked, tookMs: Date.now() - started });
     } catch (err) {
       console.error("[search] failed", err);

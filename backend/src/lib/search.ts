@@ -1,4 +1,4 @@
-import type { SearchResult } from "@ipp/shared";
+import type { SearchFilters, SearchResult } from "@ipp/shared";
 import pkg, { type PrismaClient } from "@prisma/client";
 
 // @prisma/client is CommonJS: `import { Prisma }` resolves under the dev
@@ -72,6 +72,7 @@ export async function search(
   deps: SearchDeps,
   query: string,
   limit: number,
+  filters: SearchFilters = {},
 ): Promise<SearchOutcome> {
   const [queryVector] = await deps.embeddings.embed([query]);
   if (!queryVector) throw new Error("failed to embed query");
@@ -81,13 +82,26 @@ export async function search(
   // The vector literal and dimension are interpolated (the dimension because
   // Postgres requires literal type modifiers); both are our own values, never
   // user input. `query` and `candidateCount` stay bound.
+  // Empty arrays would filter everything out; the SQL reads NULL as "no
+  // constraint", so absent has to stay absent all the way down.
+  const list = (v: string[] | undefined) => (v && v.length > 0 ? v : null);
+
   const rows = await deps.prisma.$queryRaw<HybridRow[]>`
     SELECT h.id, h.sermon_id, h.chunk_index, h.content, h.score,
            s.title, s.artist, s.date, s.duration_str, s.sc_suffix_url, s.sp_suffix_url
     FROM hybrid_search(
            ${query},
            ${Prisma.raw(`'${toVectorLiteral(queryVector)}'::halfvec(${EMBEDDING_DIMS})`)},
-           ${candidateCount}::int
+           ${candidateCount}::int,
+           1.0, 1.0, 60, 2::int, 1.5,
+           ${list(filters.pregadores)},
+           ${list(filters.tipos)},
+           ${list(filters.series)},
+           ${list(filters.livros)},
+           ${filters.capitulo ?? null}::int,
+           ${list(filters.temas)},
+           ${filters.de ?? null}::date,
+           ${filters.ate ?? null}::date
          ) h
     JOIN sermons s ON s.id = h.sermon_id
     ORDER BY h.score DESC`;

@@ -60,6 +60,13 @@ CREATE INDEX IF NOT EXISTS sermon_chunks_embedding_idx
 -- trimming beats fusing exactly `match_count` from each side, because a
 -- document ranked 15th lexically and 15th semantically should still surface.
 -- ---------------------------------------------------------------------------
+-- Filtering note (the whole reason the predicate appears three times):
+-- each arm truncates at match_count * 8 (or * 2) BEFORE the fusion below.
+-- Filtering after the fusion, or in the caller's outer SELECT, would throw
+-- away most of an already-truncated candidate pool and return two or three
+-- results for a perfectly ordinary filtered query -- with no error anywhere.
+-- The predicate has to narrow each pool as it is built, not after.
+--
 -- Query-building note (learned the hard way, keep this):
 -- websearch_to_tsquery ANDs bare terms, so "briga na igreja" becomes
 -- 'brig' & 'igrej' and matches only chunks containing BOTH stems. On a sermon
@@ -79,6 +86,11 @@ AS $$
   );
 $$;
 
+-- The pre-facet signature has to go before the new one is created: adding
+-- parameters with defaults makes an OVERLOAD, not a replacement, and a call
+-- with the old argument count would then be ambiguous and fail at runtime.
+DROP FUNCTION IF EXISTS hybrid_search(text, halfvec, int, float, float, int, int, float);
+
 CREATE OR REPLACE FUNCTION hybrid_search(
   query_text      text,
   query_embedding halfvec(1536),
@@ -91,7 +103,18 @@ CREATE OR REPLACE FUNCTION hybrid_search(
   max_per_sermon  int   DEFAULT 2,
   -- Titles are curated metadata (passage + topic), not transcribed speech, so
   -- a title hit is a strong signal and is weighted above the two text arms.
-  title_weight    float DEFAULT 1.5
+  title_weight    float DEFAULT 1.5,
+  -- Browse facets. NULL means "no constraint", so every existing call is
+  -- unaffected. Bound parameters, never interpolated -- unlike the vector,
+  -- whose type modifier Postgres requires to be a literal.
+  filter_artists  text[] DEFAULT NULL,
+  filter_types    text[] DEFAULT NULL,
+  filter_series   text[] DEFAULT NULL,
+  filter_books    text[] DEFAULT NULL,
+  filter_chapter  int    DEFAULT NULL,
+  filter_topics   text[] DEFAULT NULL,
+  filter_from     date   DEFAULT NULL,
+  filter_to       date   DEFAULT NULL
 )
 RETURNS TABLE (
   id            text,
@@ -121,6 +144,20 @@ AS $$
       ) AS rank_ix
     FROM sermons s
     WHERE to_tsvector('pt_unaccent', s.title) @@ ipp_to_tsquery(query_text)
+      AND (filter_artists IS NULL OR s.artist      = ANY(filter_artists))
+      AND (filter_types   IS NULL OR s.service_type = ANY(filter_types))
+      AND (filter_series  IS NULL OR s.series_slug  = ANY(filter_series))
+      AND (filter_from    IS NULL OR s.date        >= filter_from)
+      AND (filter_to      IS NULL OR s.date        <= filter_to)
+      AND (filter_books   IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_scriptures ss
+              WHERE ss.sermon_id = s.id
+                AND ss.book_slug = ANY(filter_books)
+                AND (filter_chapter IS NULL OR ss.chapter = filter_chapter)))
+      AND (filter_topics  IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_topics st
+              WHERE st.sermon_id = s.id
+                AND st.topic_slug = ANY(filter_topics)))
     ORDER BY rank_ix
     LIMIT match_count * 2
   ),
@@ -131,7 +168,22 @@ AS $$
         ORDER BY ts_rank_cd(sc.fts, ipp_to_tsquery(query_text)) DESC
       ) AS rank_ix
     FROM sermon_chunks sc
+    JOIN sermons s ON s.id = sc.sermon_id
     WHERE sc.fts @@ ipp_to_tsquery(query_text)
+      AND (filter_artists IS NULL OR s.artist      = ANY(filter_artists))
+      AND (filter_types   IS NULL OR s.service_type = ANY(filter_types))
+      AND (filter_series  IS NULL OR s.series_slug  = ANY(filter_series))
+      AND (filter_from    IS NULL OR s.date        >= filter_from)
+      AND (filter_to      IS NULL OR s.date        <= filter_to)
+      AND (filter_books   IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_scriptures ss
+              WHERE ss.sermon_id = s.id
+                AND ss.book_slug = ANY(filter_books)
+                AND (filter_chapter IS NULL OR ss.chapter = filter_chapter)))
+      AND (filter_topics  IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_topics st
+              WHERE st.sermon_id = s.id
+                AND st.topic_slug = ANY(filter_topics)))
     ORDER BY rank_ix
     LIMIT match_count * 8
   ),
@@ -140,7 +192,22 @@ AS $$
       sc.id,
       row_number() OVER (ORDER BY sc.embedding <=> query_embedding) AS rank_ix
     FROM sermon_chunks sc
+    JOIN sermons s ON s.id = sc.sermon_id
     WHERE sc.embedding IS NOT NULL
+      AND (filter_artists IS NULL OR s.artist      = ANY(filter_artists))
+      AND (filter_types   IS NULL OR s.service_type = ANY(filter_types))
+      AND (filter_series  IS NULL OR s.series_slug  = ANY(filter_series))
+      AND (filter_from    IS NULL OR s.date        >= filter_from)
+      AND (filter_to      IS NULL OR s.date        <= filter_to)
+      AND (filter_books   IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_scriptures ss
+              WHERE ss.sermon_id = s.id
+                AND ss.book_slug = ANY(filter_books)
+                AND (filter_chapter IS NULL OR ss.chapter = filter_chapter)))
+      AND (filter_topics  IS NULL OR EXISTS (
+             SELECT 1 FROM sermon_topics st
+              WHERE st.sermon_id = s.id
+                AND st.topic_slug = ANY(filter_topics)))
     ORDER BY rank_ix
     LIMIT match_count * 8
   ),

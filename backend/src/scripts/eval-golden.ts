@@ -6,6 +6,7 @@ import pkg from "@prisma/client";
 // loader but not in the compiled ESM build. Destructure from the default.
 const { PrismaClient } = pkg;
 
+import type { SearchFilters } from "@ipp/shared";
 import { createOpenRouterEmbeddings } from "../lib/embeddings.ts";
 import { createOpenRouterReranker } from "../lib/rerank.ts";
 import { search } from "../lib/search.ts";
@@ -26,6 +27,8 @@ type GoldenQuery = {
   expect: string[];
   why: string;
   minResults?: number;
+  /** Browse facets, so a filtered search is under test too. */
+  filters?: SearchFilters;
 };
 
 type GoldenSet = {
@@ -52,7 +55,12 @@ async function main(): Promise<void> {
   const failures: string[] = [];
 
   for (const gq of golden.queries) {
-    const { results } = await search({ prisma, embeddings, reranker }, gq.query, golden.recallAt);
+    const { results } = await search(
+      { prisma, embeddings, reranker },
+      gq.query,
+      golden.recallAt,
+      gq.filters,
+    );
     const foundIds = new Set(results.map((r) => r.id));
 
     const missing = gq.expect.filter((id) => !foundIds.has(id));

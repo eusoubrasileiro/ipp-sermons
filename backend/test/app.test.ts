@@ -180,3 +180,47 @@ describe("POST /api/suggestion", () => {
     expect((await post(app, "/api/suggestion", { suggestion: " " })).status).toBe(400);
   });
 });
+
+describe("POST /api/search — filtros", () => {
+  it("passes the facets through as bound parameters", async () => {
+    const prisma = stubPrisma([chunkRow(1)]);
+    const app = createApp({ prisma, embeddings: stubEmbeddings() });
+
+    const res = await app.request("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: "casamento",
+        filtros: { livros: ["efesios"], capitulo: 5, pregadores: ["Reverendo Bruno Melo"] },
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    // The facet values must arrive as bound parameters, never spliced into SQL.
+    const bound = JSON.stringify(
+      (prisma.$queryRaw as unknown as { mock: { calls: unknown[] } }).mock.calls,
+    );
+    expect(bound).toContain("efesios");
+    expect(bound).toContain("Reverendo Bruno Melo");
+  });
+
+  it("rejects a chapter that cannot exist", async () => {
+    const app = createApp({ prisma: stubPrisma([]), embeddings: stubEmbeddings() });
+    const res = await app.request("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "casamento", filtros: { capitulo: 999 } }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("searches unfiltered when no facets are sent", async () => {
+    const app = createApp({ prisma: stubPrisma([chunkRow(1)]), embeddings: stubEmbeddings() });
+    const res = await app.request("/api/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "casamento" }),
+    });
+    expect(res.status).toBe(200);
+  });
+});

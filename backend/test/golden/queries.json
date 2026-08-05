@@ -1,6 +1,9 @@
 {
   "description": "Golden query set for the IPP sermon corpus. Each query names the sermon ids a good result list must surface. Anchored on real sermons in the indexed corpus, not invented ones. This is what proves the API-only rewrite retrieves as well as the GPU system it replaces.",
-  "corpus": { "sermons": 455, "chunks": 19953 },
+  "corpus": {
+    "sermons": 455,
+    "chunks": 19953
+  },
   "recallAt": 10,
   "queries": [
     {
@@ -43,6 +46,34 @@
       "query": "sola fide somente a fe",
       "expect": ["1176318775"],
       "why": "latin phrase mixed with unaccented portuguese"
+    },
+    {
+      "query": "casamento",
+      "filters": {
+        "livros": ["efesios"],
+        "capitulo": 5
+      },
+      "expect": [],
+      "minResults": 3,
+      "why": "filtered search must still return a full result list. A predicate applied after the RRF fusion instead of inside each arm returns 0-2 here and raises no error -- this is the only gate that catches it."
+    },
+    {
+      "query": "casamento",
+      "filters": {
+        "tipos": ["ebd"]
+      },
+      "expect": [],
+      "minResults": 5,
+      "why": "service-type filter narrows to Sunday school without starving the candidate pool"
+    },
+    {
+      "query": "batismo infantil",
+      "filters": {
+        "pregadores": ["Reverendo Bruno Melo"]
+      },
+      "expect": [],
+      "minResults": 3,
+      "why": "preacher filter composes with a query that already ranks well unfiltered"
     }
   ]
 }

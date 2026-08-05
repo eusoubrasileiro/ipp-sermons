@@ -36,9 +36,39 @@ export const SearchResultSchema = SermonMetaSchema.extend({
 });
 export type SearchResult = z.infer<typeof SearchResultSchema>;
 
+/**
+ * Browse facets, all optional and all AND-ed together.
+ *
+ * Filters compose WITH the query rather than replacing it: "briga na igreja"
+ * narrowed to Efesios and to one preacher is a single request. That is the
+ * point of pushing them into hybrid_search() instead of filtering the results.
+ *
+ * A filter-only browse with no query does NOT come through here -- `query` has
+ * a two-character minimum -- and uses GET /api/sermons instead.
+ */
+export const SearchFiltersSchema = z.object({
+  pregadores: z.array(z.string().min(1)).max(20).optional(),
+  tipos: z.array(z.string().min(1)).max(10).optional(),
+  series: z.array(z.string().min(1)).max(20).optional(),
+  livros: z.array(z.string().min(1)).max(20).optional(),
+  capitulo: z.number().int().min(1).max(150).optional(),
+  temas: z.array(z.string().min(1)).max(20).optional(),
+  de: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  ate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+});
+
+export type SearchFilters = z.infer<typeof SearchFiltersSchema>;
+
 export const SearchRequestSchema = z.object({
   query: z.string().trim().min(2, "A busca precisa de ao menos 2 caracteres").max(500),
   limit: z.number().int().min(1).max(50).default(10),
+  filtros: SearchFiltersSchema.optional(),
 });
 export type SearchRequest = z.infer<typeof SearchRequestSchema>;
 
