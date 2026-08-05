@@ -25,3 +25,17 @@ export function writeCsv(columns: string[], rows: Record<string, CsvValue>[]): s
   }
   return `${lines.join("\n")}\n`;
 }
+
+/**
+ * Guards a load that filters rows against known keys.
+ *
+ * A file whose rows *all* filter out is a column-name or slug mismatch, not an
+ * empty corpus, and it is invisible: the load reports zero, the deploy
+ * succeeds, and every facet page renders and lists nothing. This turns that
+ * into a failure at the point it can still be fixed.
+ */
+export function assertMatched(expected: string, rows: number, matched: number): void {
+  if (rows > 0 && matched === 0) {
+    throw new Error(`${rows} rows read but none matched a known key — expected ${expected}`);
+  }
+}

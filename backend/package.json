@@ -17,6 +17,8 @@
     "verify:corpus": "node --experimental-strip-types src/scripts/verify-corpus.ts",
     "derive:facets": "node --experimental-strip-types src/scripts/derive-facets.ts",
     "extract:scripture": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/extract-scripture.ts",
+    "propose:taxonomy": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/propose-taxonomy.ts",
+    "label:topics": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/label-topics.ts",
     "canonicalize:series": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/canonicalize-series.ts",
     "index:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/index-facets.ts",
     "verify:facets": "node --experimental-strip-types src/scripts/verify-facets.ts"

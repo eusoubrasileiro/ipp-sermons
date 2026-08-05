@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv, readTranscript } from "../lib/corpus.ts";
+import { cliLimit, reportFailures, runBatch } from "../lib/facets/batch.ts";
 import { loadBibleBooks } from "../lib/facets/bible.ts";
 import { type CsvValue, writeCsv } from "../lib/facets/csv.ts";
 import {
@@ -32,7 +33,6 @@ import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
  */
 const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
 const DRY_RUN = process.argv.includes("--dry-run");
-const CONCURRENCY = 4;
 /** Flushed this often so a crash costs a handful of calls, not the whole run. */
 const FLUSH_EVERY = 20;
 
@@ -56,11 +56,7 @@ const CACHE_COLUMNS = [
   "justificativa",
 ];
 
-const limitFlag = process.argv.indexOf("--limit");
-const LIMIT =
-  limitFlag !== -1 && process.argv[limitFlag + 1]
-    ? Number.parseInt(process.argv[limitFlag + 1] as string, 10)
-    : Number.POSITIVE_INFINITY;
+const LIMIT = cliLimit();
 
 const num = (v: string | undefined): number | null => {
   const parsed = Number.parseInt(v ?? "", 10);
@@ -133,40 +129,29 @@ async function askModel(
 ): Promise<void> {
   const llm = createOpenRouterLlm({ apiKey });
   const schema = buildSchema(books);
-  const failures: string[] = [];
-  let done = 0;
+  const failures = await runBatch(
+    todo,
+    async (sermon) => {
+      const transcript = await readTranscript(DATA_DIR, sermon.transcriptFile);
+      const decision = await llm.complete<ScriptureDecision>({
+        system: EXTRACT_SYSTEM,
+        user: buildPrompt(sermon.title, transcript),
+        schema,
+        schemaName: "passagem_biblica",
+      });
+      cache.set(sermon.id, decision);
+    },
+    {
+      label: (sermon) => sermon.title,
+      flushEvery: FLUSH_EVERY,
+      onFlush: async (done, total) => {
+        await writeFile(cachePath, writeCsv(CACHE_COLUMNS, cacheRows(cache)));
+        console.log(`  ${done}/${total}…`);
+      },
+    },
+  );
 
-  for (let i = 0; i < todo.length; i += CONCURRENCY) {
-    await Promise.all(
-      todo.slice(i, i + CONCURRENCY).map(async (sermon) => {
-        try {
-          const transcript = await readTranscript(DATA_DIR, sermon.transcriptFile);
-          const decision = await llm.complete<ScriptureDecision>({
-            system: EXTRACT_SYSTEM,
-            user: buildPrompt(sermon.title, transcript),
-            schema,
-            schemaName: "passagem_biblica",
-          });
-          cache.set(sermon.id, decision);
-        } catch (err) {
-          // One unreachable sermon must not cost the whole run: it stays out of
-          // the cache and the next run picks it up.
-          failures.push(`${sermon.title}: ${err instanceof Error ? err.message : String(err)}`);
-        }
-      }),
-    );
-
-    done += CONCURRENCY;
-    if (done % FLUSH_EVERY < CONCURRENCY) {
-      await writeFile(cachePath, writeCsv(CACHE_COLUMNS, cacheRows(cache)));
-      console.log(`  ${Math.min(done, todo.length)}/${todo.length}…`);
-    }
-  }
-
-  if (failures.length > 0) {
-    console.log(`\n${failures.length} failed and will be retried on the next run:`);
-    for (const f of failures.slice(0, 10)) console.log(`  ${f}`);
-  }
+  reportFailures(failures);
 }
 
 async function writeScriptures(

@@ -39,5 +39,5 @@ contribution gates are documented in [`CLAUDE.md`](./CLAUDE.md).
 
 ## Corpus
 
-~1,100 sermons, ~20 MB of transcripts under `data/`. Audio is never hosted here.
+456 sermons, ~20 MB of transcripts under `data/`. Audio is never hosted here.
 Transcription runs offline in `tools/corpus-update/` (Python + WhisperX).

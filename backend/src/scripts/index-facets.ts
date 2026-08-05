@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "@prisma/client";
 import { parseCsv } from "../lib/corpus.ts";
+import { assertMatched } from "../lib/facets/csv.ts";
 import { buildVariantIndex, resolveSeries } from "../lib/facets/variants.ts";
 
 /**
@@ -167,6 +168,8 @@ async function loadScriptures(): Promise<{ rows: number; skipped: number }> {
       isPrimary: (r.is_primary ?? "true").trim() !== "false",
     }));
 
+  assertMatched("sermon_scriptures.csv (sermon_id, book_slug)", rows.length, payload.length);
+
   await prisma.sermonScripture.createMany({ data: payload, skipDuplicates: true });
   return { rows: payload.length, skipped: rows.length - payload.length };
 }
@@ -196,6 +199,8 @@ async function loadSermonTopics(): Promise<number> {
       topicSlug: (r.topico_slug ?? "").trim(),
       confidence: Number.parseFloat(r.confianca ?? "1") || 1,
     }));
+
+  assertMatched("sermon_topics.csv (sermon_id, topico_slug)", rows.length, payload.length);
 
   await prisma.sermonTopic.createMany({ data: payload, skipDuplicates: true });
   return payload.length;
