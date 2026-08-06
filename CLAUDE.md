@@ -16,21 +16,26 @@ answer it, with a playable SoundCloud/Spotify link and the passage that matched.
 transcription still happens offline (`tools/corpus-update`, Python + WhisperX),
 but retrieval is now API-only — no local models, no GPU, one VPS container.
 
-Corpus: ~1,100 sermons, ~20,400 chunks, ~20 MB of text committed under `data/`.
+Corpus: 456 sermons, ~20,000 chunks, ~20 MB of text committed under `data/`.
 The 77 GB of audio lives on SoundCloud and is never hosted here.
 
 ## Architecture
 
 ```
 data/metadata.csv + data/transcripts/*.txt
-        │  pnpm index  (chunk → embed via OpenRouter → upsert)
+        │  pnpm index         (chunk → embed via OpenRouter → upsert)
+        │  pnpm index:facets  (load the committed CSVs in data/facets/)
         ▼
 Postgres 16 + pgvector          ← the whole retrieval engine lives here
   sermons, sermon_chunks(embedding halfvec(1536), fts tsvector)
-  hybrid_search()  = BM25-ish lexical ⊕ vector, fused by RRF
+  bible_books, series, topics, sermon_scriptures, sermon_topics
+  hybrid_search()  = BM25-ish lexical ⊕ vector, fused by RRF, facet-filtered
         │
         ▼
-backend/  Hono   POST /api/search → hybrid_search() → cross-encoder rerank
+backend/  Hono   POST /api/search  → hybrid_search() → cross-encoder rerank
+                 GET  /api/facets  → the browse index tree
+                 GET  /api/facets/counts → the same, narrowed to active filters
+                 GET  /api/sermons → filtered listing, no query, no model
         │
         ▼
 frontend/ Vite + React 19, built into backend/public/ and served same-origin
@@ -67,11 +72,14 @@ is the honest place for it. Do not "modernise" this into a framework call.
 | Path | Purpose |
 |------|---------|
 | `shared/src/` | Zod schemas + types shared by API and UI. Built to `dist/` first; everything else depends on it. |
-| `backend/src/lib/` | `search` (retrieval), `embeddings`, `rerank`, `corpus` (CSV + transcript reader), `audio-urls` |
-| `backend/src/scripts/` | `index-corpus` (one-shot indexer), `eval-golden` (retrieval eval) |
+| `backend/src/lib/` | `search` (retrieval), `embeddings`, `rerank`, `llm` + `openrouter` (offline passes), `corpus` (CSV + transcript reader), `audio-urls` |
+| `backend/src/lib/facets/` | Facet derivation: `bible`, `parse-title`, `parse-scripture`, `cluster`, `series-taxonomy`, `extract-prompt`, `topics`, `batch`, `csv`, `slugify` |
+| `backend/src/lib/browse/` | `facets` (index tree), `counts` (adjusted for active filters), `list` (filtered listing), `query` (shared param parsing) |
+| `backend/src/scripts/` | `index-corpus`, `eval-golden`, and the facet pipeline below |
 | `backend/prisma/` | `schema.prisma` + `sql/` — **the sql files ARE the migrations** |
-| `frontend/src/` | Vite + React 19 + Tailwind SPA, Portuguese UI |
+| `frontend/src/` | Vite + React 19 + Tailwind SPA, Portuguese UI. Filter state lives in the URL (`lib/facet-params.ts`). |
 | `data/` | Corpus: `metadata.csv`, `transcripts/`, `preacher_names.txt` |
+| `data/facets/` | Derived ground truth, committed and reviewed: `bible_books`, `series`, `taxonomy`, `sermon_facets`, `sermon_scriptures`, `scripture_llm`, `sermon_topics` |
 | `tools/corpus-update/` | Python: discover → fetch → transcribe → clean. Runs offline, feeds `data/`. |
 | `deploy/` | Production compose for the Hostinger VPS |
 | `scripts/` | Dev harness (quality-gate, security-review, dispatch-worktree) |
@@ -87,6 +95,7 @@ pnpm --filter @ipp/backend exec prisma generate   # client is generated, not com
 pnpm db:up                                   # Postgres+pgvector on :5439
 pnpm db:push                                 # schema + raw SQL — NOT `prisma db push`
 pnpm index                                   # index the corpus (--limit 5 to smoke it)
+pnpm index:facets                            # load data/facets/ — free, seconds, no API
 
 pnpm dev                                     # backend + frontend
 pnpm test                                    # unit tests, no DB, no network
