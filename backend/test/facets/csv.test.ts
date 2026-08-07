@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "../../src/lib/corpus.ts";
+import { parseCsv } from "../../src/lib/csv.ts";
 import { writeCsv } from "../../src/lib/facets/csv.ts";
 
 describe("writeCsv", () => {

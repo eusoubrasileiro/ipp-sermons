@@ -1,4 +1,4 @@
-import { parseCsv } from "../corpus.ts";
+import { parseCsv } from "../csv.ts";
 import { fold, slugify } from "./slugify.ts";
 
 /**

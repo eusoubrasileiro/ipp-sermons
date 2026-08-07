@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { chunkHash, chunkText, loadSermons, parseCsv, resolveDate } from "../src/lib/corpus.ts";
+import { chunkHash, chunkText } from "../src/lib/chunking.ts";
+import { loadSermons, resolveDate } from "../src/lib/corpus.ts";
+import { parseCsv } from "../src/lib/csv.ts";
 import { normalize, toVectorLiteral } from "../src/lib/embeddings.ts";
 
 describe("parseCsv", () => {
@@ -167,6 +169,42 @@ describe("loadSermons", () => {
     const { sermons, skipped } = loadSermons(csv);
     expect(sermons).toHaveLength(0);
     expect(skipped).toHaveLength(3);
+  });
+
+  it("skips a row whose transcript covers only a fraction of the audio", () => {
+    // A truncated download transcribes cleanly over the little audio that
+    // arrived, so `score` cannot see it: this row is the real 64.7-minute
+    // class that reached production as 91 words, scoring 70.8.
+    const { sermons, skipped } = loadSermons(
+      `${header}\n${row({ words: "91", words_min: "1.4", score: "70.8" })}\n`,
+    );
+    expect(sermons).toHaveLength(0);
+    expect(skipped[0]?.reason).toContain("words/min");
+  });
+
+  it("derives the rate from words and duration when the column is absent", () => {
+    // 91 words over 64.7 minutes is 1.4/min however you arrive at it.
+    const { sermons } = loadSermons(
+      `${header}\n${row({ words: "91", words_min: "", duration: "3882" })}\n`,
+    );
+    expect(sermons).toHaveLength(0);
+  });
+
+  it("keeps a row the CSV gives no way to judge", () => {
+    // Fails open, not closed: reading an absent field as zero would reject the
+    // whole corpus -- a guard against losing nine sermons that loses all of them.
+    const { sermons } = loadSermons(
+      `${header}\n${row({ words: "", words_min: "", duration: "" })}\n`,
+    );
+    expect(sermons).toHaveLength(1);
+    expect(sermons[0]?.wordsMin).toBe(0);
+  });
+
+  it("keeps a sermon spoken unusually slowly", () => {
+    // The lowest confirmed-good sermon in the corpus sits at 88 words/min;
+    // the floor must clear it, or a real sermon disappears.
+    const { sermons } = loadSermons(`${header}\n${row({ words_min: "88" })}\n`);
+    expect(sermons).toHaveLength(1);
   });
 
   it("keeps a sermon whose date is recoverable from the timestamp", () => {

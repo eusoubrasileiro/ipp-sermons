@@ -1,6 +1,7 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+
+import { parseCsv } from "./csv.ts";
 
 /**
  * Reads the sermon corpus produced by the retired GPU pipeline: a metadata CSV
@@ -31,59 +32,44 @@ export type SermonRecord = {
 export const MIN_SCORE = 50;
 
 /**
- * Minimal RFC-4180 CSV parser.
+ * Rejects a transcript that covers only a fraction of its sermon.
  *
- * Hand-rolled rather than pulled from npm because sermon descriptions contain
- * embedded commas, quotes and newlines, and this is the one file we ever parse.
+ * `score` cannot catch this. It is a mean over the words that *were*
+ * transcribed, so a truncated download that transcribes its few minutes
+ * cleanly scores as well as a whole sermon -- nine of them reached production
+ * that way, scoring 70.8 to 87.1. `words_min` is the orthogonal signal, because
+ * `postprocess.py` divides by the true duration from the SoundCloud metadata
+ * rather than by the audio that actually downloaded:
+ *
+ *     words/min   score   audio downloaded
+ *          1.4    70.8    2%
+ *         16.5    87.1    13%
+ *         37.8    86.5    29%
+ *         63.1    85.8    47%
+ *
+ * Approved rows run from 88 (p2) to 139 (median), so 70 clears the slowest real
+ * sermon by 18 and catches every confirmed truncation. It is a safety net, not
+ * the fix: truncation past ~50% lands above the floor, and only the duration
+ * check in `tools/corpus-update/fetch.py` closes that.
  */
-export function parseCsv(text: string): Record<string, string>[] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQuotes = false;
+export const MIN_WORDS_MIN = 70;
 
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
+/**
+ * Words per minute of sermon, or null when the CSV cannot say.
+ *
+ * Deliberately fails open on a missing column rather than closed. Reading an
+ * absent field as zero would reject every row -- a guard against losing nine
+ * sermons that silently loses all five hundred. The column names here are
+ * inherited from `doc_preproc.py` and are not ours to rely on absolutely, so
+ * `words_min` falls back to the two fields it is derived from.
+ */
+function wordsPerMinute(r: Record<string, string | undefined>): number | null {
+  const stated = toNumber(r.words_min);
+  if (stated > 0) return stated;
 
-    if (inQuotes) {
-      if (ch === '"') {
-        if (text[i + 1] === '"') {
-          field += '"';
-          i++;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += ch;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inQuotes = true;
-    } else if (ch === ",") {
-      row.push(field);
-      field = "";
-    } else if (ch === "\n") {
-      row.push(field);
-      rows.push(row);
-      row = [];
-      field = "";
-    } else if (ch !== "\r") {
-      field += ch;
-    }
-  }
-  if (field !== "" || row.length > 0) {
-    row.push(field);
-    rows.push(row);
-  }
-
-  const header = rows.shift();
-  if (!header) return [];
-
-  return rows
-    .filter((r) => r.some((c) => c.trim() !== ""))
-    .map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""])));
+  const words = toNumber(r.words);
+  const minutes = toNumber(r.duration) / 60;
+  return words > 0 && minutes > 0 ? words / minutes : null;
 }
 
 const isTrue = (v: string | undefined): boolean => (v ?? "").trim().toLowerCase() === "true";
@@ -155,6 +141,12 @@ export function loadSermons(csvText: string): LoadResult {
       continue;
     }
 
+    const wordsMin = wordsPerMinute(r);
+    if (wordsMin !== null && wordsMin <= MIN_WORDS_MIN) {
+      skipped.push({ name, reason: `words/min ${wordsMin.toFixed(1)} <= ${MIN_WORDS_MIN}` });
+      continue;
+    }
+
     // `txt` already carries the .txt extension -- do not append another.
     const transcriptFile = (r.txt ?? "").trim();
     if (!transcriptFile) {
@@ -184,7 +176,7 @@ export function loadSermons(csvText: string): LoadResult {
       score,
       words: Math.round(toNumber(r.words)),
       sentences: Math.round(toNumber(r.sentences)),
-      wordsMin: toNumber(r.words_min),
+      wordsMin: wordsMin ?? 0,
       sentencesMin: toNumber(r.sentences_min),
       transcriptFile,
     };
@@ -211,36 +203,4 @@ export function loadSermons(csvText: string): LoadResult {
 
 export async function readTranscript(dataDir: string, transcriptFile: string): Promise<string> {
   return readFile(join(dataDir, "transcripts", transcriptFile), "utf8");
-}
-
-/**
- * Splits a transcript into overlapping word windows.
- *
- * 200 words with 30 of overlap reproduces the chunking the GPU pipeline used
- * (`sermons_ai/doc_embedder.py`), so retrieval behaviour stays comparable to
- * the system this replaces. The overlap keeps a thought that straddles a
- * boundary retrievable from either side.
- */
-export function chunkText(text: string, chunkWords = 200, overlapWords = 30): string[] {
-  const words = text.split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) return [];
-  if (words.length <= chunkWords) return [words.join(" ")];
-
-  const stride = chunkWords - overlapWords;
-  const chunks: string[] = [];
-
-  for (let start = 0; start < words.length; start += stride) {
-    const slice = words.slice(start, start + chunkWords);
-    // Drop a trailing sliver that the previous chunk's overlap already covers.
-    if (slice.length < overlapWords && chunks.length > 0) break;
-    chunks.push(slice.join(" "));
-    if (start + chunkWords >= words.length) break;
-  }
-
-  return chunks;
-}
-
-/** Identity of a chunk's content, so re-indexing can skip unchanged work. */
-export function chunkHash(sermonId: string, chunkIndex: number, content: string): string {
-  return createHash("sha256").update(`${sermonId}:${chunkIndex}:${content}`).digest("hex");
 }

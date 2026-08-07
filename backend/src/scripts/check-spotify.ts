@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { loadSermons } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { DATA_DIR } from "../lib/data-dir.ts";
 import { writeCsv } from "../lib/facets/csv.ts";
 import { fetchLiveness, type LivenessRow, parseLivenessCsv } from "../lib/podcast-feed.ts";

@@ -1,7 +1,8 @@
 import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { loadSermons } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { DATA_DIR } from "../lib/data-dir.ts";
 import { clusterNames, type NameCluster } from "../lib/facets/cluster.ts";
 import { writeCsv } from "../lib/facets/csv.ts";

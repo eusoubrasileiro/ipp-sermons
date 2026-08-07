@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "@prisma/client";
-import { parseCsv } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { DATA_DIR } from "../lib/data-dir.ts";
 import { assertMatched, int } from "../lib/facets/csv.ts";
 import { scripturePayload, spotifyPartition, topicPayload } from "../lib/facets/load-payload.ts";

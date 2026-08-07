@@ -1,7 +1,7 @@
 import { access, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { loadSermons, MIN_SCORE } from "../lib/corpus.ts";
+import { loadSermons, MIN_SCORE, MIN_WORDS_MIN } from "../lib/corpus.ts";
 
 /**
  * Checks that data/ is loadable before anything expensive touches it.
@@ -41,9 +41,15 @@ async function main(): Promise<void> {
   }
 
   const newest = sermons.reduce((a, b) => (a.date > b.date ? a : b));
-  console.log(`indexable sermons: ${sermons.length} (score > ${MIN_SCORE})`);
-  console.log(`skipped by the loader: ${skipped.length}`);
+  console.log(
+    `indexable sermons: ${sermons.length} (score > ${MIN_SCORE}, words/min > ${MIN_WORDS_MIN})`,
+  );
   console.log(`newest: ${newest.date.toISOString().slice(0, 10)} — ${newest.title}`);
+
+  // Named, not counted. A bare total is how nine truncated sermons went into
+  // production unnoticed: the count moved and nobody could see what had left.
+  console.log(`\nskipped by the loader: ${skipped.length}`);
+  for (const s of skipped) console.log(`  ${s.name}: ${s.reason}`);
 
   if (problems.length > 0) {
     console.error(`\n${problems.length} problem(s):`);

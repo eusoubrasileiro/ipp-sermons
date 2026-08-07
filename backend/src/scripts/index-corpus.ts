@@ -8,13 +8,8 @@ import pkg, { type PrismaClient as PrismaClientType } from "@prisma/client";
 // misses it. Destructure from the default export instead.
 const { Prisma, PrismaClient } = pkg;
 
-import {
-  chunkHash,
-  chunkText,
-  loadSermons,
-  readTranscript,
-  type SermonRecord,
-} from "../lib/corpus.ts";
+import { chunkHash, chunkText } from "../lib/chunking.ts";
+import { loadSermons, readTranscript, type SermonRecord } from "../lib/corpus.ts";
 import { createOpenRouterEmbeddings, EMBEDDING_DIMS, toVectorLiteral } from "../lib/embeddings.ts";
 import { createUsageMeter } from "../lib/usage.ts";
 

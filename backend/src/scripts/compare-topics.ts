@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { loadSermons, parseCsv, readTranscript } from "../lib/corpus.ts";
+import { loadSermons, readTranscript } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { DATA_DIR } from "../lib/data-dir.ts";
 import { runBatch } from "../lib/facets/batch.ts";
 import { agreementWith, divergent, type Labelled } from "../lib/facets/compare.ts";

@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadSermons, parseCsv, readTranscript } from "../lib/corpus.ts";
+import { loadSermons, readTranscript } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { DATA_DIR } from "../lib/data-dir.ts";
 import { cliLimit, reportFailures, runBatch } from "../lib/facets/batch.ts";
 import { type CsvValue, writeCsv } from "../lib/facets/csv.ts";

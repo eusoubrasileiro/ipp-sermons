@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { loadSermons } from "../lib/corpus.ts";
+import { parseCsv } from "../lib/csv.ts";
 import { loadBibleBooks } from "../lib/facets/bible.ts";
 import { type CsvValue, writeCsv } from "../lib/facets/csv.ts";
 import { chaptersOf } from "../lib/facets/parse-scripture.ts";
