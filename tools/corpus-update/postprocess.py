@@ -65,12 +65,22 @@ def artist_candidates(info: dict) -> list[str]:
     name survives in the description, which by house style ends "<topic> por
     <Preacher>". The old field is still tried second, for tracks that predate
     the change.
+
+    A conference or a joint lesson credits several names in that tail
+    ("por Pr. Bruno Melo, Seminarista Felipe Ricieri e André Cunha"), and the
+    corpus has one `artist` column. Fuzzy-matching the whole run against a
+    single name scores below the cutoff and the sermon ends up with no preacher
+    at all, so each name is offered on its own after the full string, and the
+    first one that matches wins.
     """
     candidates = []
 
     description = (info.get("description") or "").strip()
     if " por " in description:
-        candidates.append(description.rsplit(" por ", 1)[-1].splitlines()[0])
+        tail = description.rsplit(" por ", 1)[-1].splitlines()[0]
+        candidates.append(tail)
+        names = [n.strip() for n in re.split(r",| e ", tail)]
+        candidates.extend(n for n in names if n and n != tail)
 
     if info.get("artist"):
         candidates.append(info["artist"])

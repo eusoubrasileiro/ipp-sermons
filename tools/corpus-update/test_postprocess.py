@@ -51,3 +51,32 @@ def test_pending_skips_a_stem_already_in_rows_jsonl(tmp_path):
 
 def test_pending_drops_a_stem_with_no_soundcloud_id(tmp_path):
     assert postprocess.pending([tmp_path / "sem id.txt"], set()) == []
+
+
+PREACHERS = ["bruno melo", "eder mota"]
+FULL_NAMES = ["Reverendo Bruno Melo", "Presbítero Éder Mota"]
+
+
+def test_resolve_artist_reads_the_house_style():
+    info = {"description": "1 Reis 19 - O plano de Deus por Rev. Bruno Melo"}
+
+    assert postprocess.resolve_artist(info, PREACHERS, FULL_NAMES) == "Reverendo Bruno Melo"
+
+
+def test_resolve_artist_takes_the_first_of_several_preachers():
+    """Conferences and joint lessons credit more than one name, and the corpus
+    has a single `artist` column. Fuzzy-matching the whole run of names against
+    one name scores below the cutoff and the sermon ends up with no preacher at
+    all -- which is what happened to the Maranhão lesson."""
+    info = {
+        "description": "Viagem Maranhão por Pr. Bruno Melo, "
+        "Seminarista Felipe Ricieri e André Cunha"
+    }
+
+    assert postprocess.resolve_artist(info, PREACHERS, FULL_NAMES) == "Reverendo Bruno Melo"
+
+
+def test_resolve_artist_leaves_it_blank_rather_than_guessing():
+    info = {"description": "Uma aula por Alguém Que Não Está Na Lista"}
+
+    assert postprocess.resolve_artist(info, PREACHERS, FULL_NAMES) is None
