@@ -140,21 +140,30 @@ stage_commit() {
   local added
   added=$(git status --porcelain data/transcripts/ | grep -c '^??' || true)
 
-  # --only, rather than `git add data/` and then commit: a failing hook left the
-  # corpus staged, and the next commit anyone made swept all of it in -- without
-  # the Ratified-by trailer, under a message about something else.
+  # Both halves are load-bearing, and each fixes something the other caused.
+  #
+  # `git add` first, because the new transcripts are untracked and `--only` on
+  # its own commits tracked changes only: it produced a metadata.csv naming 47
+  # files that were not in the tree, and `verify:corpus` fails on that checkout.
+  #
+  # `--only` second, because a rejected commit used to leave the corpus staged,
+  # and the next commit anyone made swept all of it in -- under a message about
+  # something else, without the Ratified-by trailer that data/** requires. The
+  # reset on failure is what actually restores the index.
   #
   # The trailer is its own final paragraph. git only parses trailers from a last
   # block of trailer-shaped lines; appended to prose it is written and invisible.
   # Wrapped by hand: commitlint caps a body line at 100 characters, and git
   # never re-wraps a -m. An over-long line here means the stage cannot commit
   # at all, which is a failure at the end of a run that took days.
+  git add -A data/
   git commit -q --only data/ \
     -m "feat(data): +$added sermons from the SoundCloud archive" \
     -m "Transcribed offline by tools/corpus-update, then classified by the facet
 passes. Derived ground truth, regenerated and committed by
 scripts/corpus-update.sh." \
-    -m "Ratified-by: André <eusoubrasileiro@gmail.com>"
+    -m "Ratified-by: André <eusoubrasileiro@gmail.com>" ||
+    { git reset -q -- data/; die "the corpus commit was rejected (above)"; }
 
   say "push  (typecheck, lint, coverage, quality gate, reviewer)"
   git push
