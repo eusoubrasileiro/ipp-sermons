@@ -1,10 +1,12 @@
 # Corpus update
 
 Brings `data/` up to date with whatever the church has published since the last
-run, and hands off to the existing indexer.
+run. This is the Python half; `pnpm corpus:update` drives it and then carries
+on through the facet passes, indexing and the release.
 
 ```bash
-tools/corpus-update/run.sh
+pnpm corpus:update              # the whole thing, upstream to production
+tools/corpus-update/run.sh      # just this half
 ```
 
 Idempotent and incremental at every stage. Running it twice does nothing the
@@ -36,9 +38,10 @@ the last word on them: `pnpm verify:corpus` loads the result through the real
 | `transcribe` | ffmpeg pre-filter, then WhisperX `large-v3` in Portuguese on the GPU | skipping stems that already have a raw transcript |
 | `postprocess` | spaCy/LanguageTool cleaning, metrics, score; writes the corpus `.txt` | skipping ids already in `rows.jsonl` |
 | `append` | Appends new rows to `metadata.csv` | skipping ids already in the CSV |
-| verify + index | `pnpm verify:corpus`, then `pnpm index` | the indexer is content-hash keyed |
 
-Run one on its own with `run.sh <stage>`.
+Run one on its own with `run.sh <stage>`. `run.sh` stops at `append`: the order
+of everything from `data/` inward lives in `scripts/corpus-update.sh`, and
+stating it twice is how it came to be stated wrongly here.
 
 ## Where things live
 

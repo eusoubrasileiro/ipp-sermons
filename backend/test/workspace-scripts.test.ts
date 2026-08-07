@@ -36,6 +36,18 @@ describe("workspace scripts", () => {
     expect(PIPELINE.filter((name) => !(name in root))).toEqual([]);
   });
 
+  it("resolves every pnpm script the orchestrator invokes", () => {
+    // The orchestrator is the only place the pipeline order is written down, so
+    // a renamed script turns into a stage that dies mid-run rather than a
+    // command nobody happened to type.
+    const sh = readFileSync(join(ROOT, "scripts/corpus-update.sh"), "utf8");
+    const called = new Set(Array.from(sh.matchAll(/\bpnpm ([a-z][a-z0-9:-]*)/g), (m) => m[1]));
+    const root = scripts(".");
+
+    expect(called.size).toBeGreaterThan(5);
+    expect([...called].filter((name) => !(name && name in root))).toEqual([]);
+  });
+
   it("keeps propose:taxonomy out of reach of the root", () => {
     // It rewrites taxonomy.csv from scratch, which orphans every row
     // label-topics.ts ever wrote. Leaving it backend-only is a free structural

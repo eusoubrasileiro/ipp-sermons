@@ -35,6 +35,7 @@
     "canonicalize:series": "pnpm --filter @ipp/backend canonicalize:series",
     "index:facets": "pnpm --filter @ipp/backend index:facets",
     "verify:facets": "pnpm --filter @ipp/backend verify:facets",
+    "corpus:update": "bash scripts/corpus-update.sh",
     "prepare": "husky",
     "eval": "pnpm --filter @ipp/backend eval"
   },

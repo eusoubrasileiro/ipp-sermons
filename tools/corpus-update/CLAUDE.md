@@ -11,8 +11,9 @@ modes, and is not repeated here.
 
 - **This directory is outside the pnpm workspace** (`pnpm-workspace.yaml`) and
   outside Biome's `includes`. `pnpm lint`, `pnpm test` and `pnpm quality-gate`
-  do not see it, and must not be widened to. The gate on this code is
-  `pnpm verify:corpus`, which loads the output through the real `loadSermons()`.
+  do not see it, and must not be widened to. The gates on this code are its own
+  `pytest` (run from the venv) and `pnpm verify:corpus`, which loads the output
+  through the real `loadSermons()`.
 
 - **Never recompute `words`, `sentences`, `sent_ratio` or `score` outside this
   venv.** Those numbers are whatever spaCy-pt, LanguageTool and WhisperX's

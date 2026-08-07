@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# The whole corpus update, end to end. Safe to re-run: every stage skips work it
-# has already done, so a second run in a row is a no-op and a run next month
-# picks up only what the church published since.
+# SoundCloud to data/. Safe to re-run: every stage skips work it has already
+# done, so a second run in a row is a no-op and a run next month picks up only
+# what the church published since.
 #
-#   tools/corpus-update/run.sh              # everything
+#   tools/corpus-update/run.sh              # discover .. append
 #   tools/corpus-update/run.sh discover     # or any single stage
+#
+# This is the Python half. `pnpm corpus:update` drives it and then carries on
+# through the facet passes, indexing and the release.
 #
 # Transcription is the long pole -- roughly 20 minutes of GPU per hour of audio
 # on this box -- so a large backlog is measured in days, not hours. Interrupting
@@ -23,9 +26,8 @@ mkdir -p "$WORK"
 exec 9>"$WORK/.lock"
 flock -n 9 || { echo "another corpus-update run holds $WORK/.lock" >&2; exit 1; }
 
-# The indexer reads OPENROUTER_API_KEY and DATABASE_URL from the environment and
-# nothing in the repo loads .env for it, so a bare `run.sh` would get all the way
-# through transcription and then fail at the last step.
+# postprocess reads the Spotify credentials from the environment to fill
+# sp_suffix_url, and nothing in this directory loads .env for it.
 if [ -f ../../.env ]; then
   set -a
   # shellcheck disable=SC1091
@@ -43,16 +45,14 @@ case "$STAGE" in
     run transcribe
     run postprocess
     run append
+    # Stops at the seam. Everything from data/ inward -- verify, the facet
+    # passes, indexing, the release -- belongs to scripts/corpus-update.sh,
+    # which is where the order between those steps is written down. This used
+    # to run verify:corpus and index here, which was a second statement of that
+    # order and a wrong one: it skipped the facet half entirely and indexed
+    # before the facets existed.
     echo
-    echo "=== verify ==="
-    # The workspace's own loader gets the last word on what Python produced,
-    # before the indexer starts spending money on embeddings.
-    (cd ../.. && pnpm verify:corpus)
-    echo
-    echo "=== index ==="
-    # Content-hash keyed, so re-running over the whole corpus only embeds the
-    # chunks that are actually new.
-    (cd ../.. && pnpm index)
+    echo "data/ is up to date. Next: pnpm corpus:update facets"
     ;;
   *)
     echo "unknown stage: $STAGE" >&2

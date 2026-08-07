@@ -82,7 +82,7 @@ is the honest place for it. Do not "modernise" this into a framework call.
 | `data/facets/` | Derived ground truth, committed and reviewed: `bible_books`, `series`, `taxonomy`, `sermon_facets`, `sermon_scriptures`, `scripture_llm`, `sermon_topics` |
 | `tools/corpus-update/` | Python: discover → fetch → transcribe → clean. Runs offline, feeds `data/`. |
 | `deploy/` | Production compose for the Hostinger VPS |
-| `scripts/` | Dev harness (quality-gate, security-review, dispatch-worktree) |
+| `scripts/` | Dev harness (quality-gate, security-review, dispatch-worktree) + `corpus-update.sh`, which owns the order of a corpus update |
 | `archive/` | Retired GPU-era Python. Reference only — never revive. |
 
 ## Development
@@ -104,6 +104,9 @@ pnpm typecheck
 pnpm lint
 pnpm eval                                    # golden query set vs the REAL db + API
 pnpm quality-gate                            # metric ratchet vs quality-baseline.json
+
+pnpm corpus:update                           # SoundCloud → data/ → facets → prod
+pnpm corpus:update --review                  # same, stopping at each checkpoint
 ```
 
 `pnpm eval` is the only thing that proves the search is any good. Unit tests
@@ -244,9 +247,11 @@ Image `ghcr.io/eusoubrasileiro/ipp-sermons` → Hostinger VPS at
 `sql/`. There is no checkout on the VPS. Traefik v3 on the external
 `network_public` terminates TLS and routes `ipp-sermons.amiticia.cc`.
 
-Three services: `db` (pgvector/pg16), `migrate` (one-shot `postgres:16-alpine`
-applying the committed SQL, idempotent), `app`. Memory limits are not decorative
-— the box has ~2 GB free of 7.8 GB, plus 4 GB of swap added for this deployment.
+Four services, in dependency order: `db` (pgvector/pg16), `migrate` (one-shot
+`postgres:16-alpine` applying the committed SQL, idempotent), `index` and
+`facets` (one-shot, in that order — `index-facets` filters its rows to the
+sermon ids already in the database), `app`. Memory limits are not decorative —
+the box has ~2 GB free of 7.8 GB, plus 4 GB of swap added for this deployment.
 
 Rollback: pin `IMAGE_TAG` in `.env` to the previous digest and
 `docker compose up -d`.
