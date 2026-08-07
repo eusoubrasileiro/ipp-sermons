@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv } from "../lib/corpus.ts";
@@ -5,6 +6,7 @@ import { clusterNames, type NameCluster } from "../lib/facets/cluster.ts";
 import { writeCsv } from "../lib/facets/csv.ts";
 import {
   buildSeriesRows,
+  retiredSlugs,
   SERIES_COLUMNS,
   type SeriesDecision,
 } from "../lib/facets/series-taxonomy.ts";
@@ -28,9 +30,10 @@ import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
  * `--dry-run` stops after stage 1 and prints the clusters, so the input to the
  * model can be inspected before spending anything.
  *
- * Re-running is safe: the output is a pure function of the corpus plus the
- * model's answer, and any hand-edit to series.csv survives because
- * `verify-facets` -- not this script -- is what runs in CI.
+ * Safe to run unattended, because of stage 4: nothing is written if the answer
+ * would retire a slug that is already committed. Growing the taxonomy is
+ * harmless; merging away a live `/series/<slug>` is not, and the model has no
+ * way to know which names somebody has linked to.
  */
 const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
 const DRY_RUN = process.argv.includes("--dry-run");
@@ -133,12 +136,46 @@ async function main(): Promise<void> {
   await writeSeries(clusters, answer.series, DATA_DIR);
 }
 
+/**
+ * The slugs in the last commit — the ones whose URLs are live.
+ *
+ * Read from git rather than from disk: the file on disk is what this run is
+ * about to overwrite, and on a second run in the same session it would already
+ * carry the model's previous answer, which protects nothing.
+ */
+function committedSlugs(dataDir: string): string[] {
+  try {
+    const csv = execFileSync("git", ["show", "HEAD:data/facets/series.csv"], {
+      cwd: dataDir,
+      encoding: "utf8",
+    });
+    return parseCsv(csv)
+      .map((r) => (r.slug ?? "").trim())
+      .filter(Boolean);
+  } catch {
+    return []; // Not committed yet — there is nothing live to protect.
+  }
+}
+
 async function writeSeries(
   clusters: NameCluster[],
   decisions: SeriesDecision[],
   dataDir: string,
 ): Promise<void> {
   const rows = buildSeriesRows(clusters, decisions);
+
+  const retired = retiredSlugs(
+    committedSlugs(dataDir),
+    rows.map((r) => r.slug),
+  );
+  if (retired.length > 0) {
+    console.error(`\n${retired.length} committed series slug(s) would be retired:`);
+    for (const slug of retired) console.error(`  /series/${slug}`);
+    console.error("\nNothing was written. Those URLs are live; re-run with the merge");
+    console.error("reviewed by hand, or accept the loss by editing series.csv yourself.");
+    process.exit(1);
+  }
+
   await writeFile(join(dataDir, "facets/series.csv"), writeCsv(SERIES_COLUMNS, rows));
 
   const real = rows.filter((r) => r.sermon_count >= 2);

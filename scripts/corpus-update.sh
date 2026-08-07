@@ -15,6 +15,8 @@
 #             and would drop every cached LLM row if run on its own
 #   topics    label:topics                   paid per new sermon, resumable
 #   verify    the abort criteria below       free
+#   canonicalize  series.csv rewrite         only when verify found a new series;
+#             refuses to retire a committed slug, so it is safe unattended
 #   commit    git add data/, commit, push    the reviewer runs on push
 #   index     index, index:facets            paid on new chunks only; the order
 #             is load-bearing, index-facets filters to ids already in the DB
@@ -22,7 +24,6 @@
 #   release   build -> ghcr -> VPS -> up -d  refuses a dirty tree
 #   smoke     production verification        rolls back on a mismatch
 #
-#   canonicalize   deliberately NOT in `all` -- see stage_canonicalize
 #
 # Default mode runs unattended, so the checks in `stage_verify` are the only
 # thing between a bad derivation and the live site. Adding a stage means asking
@@ -265,15 +266,28 @@ stage_smoke() {
   printf '\n%s is live and matches the corpus.\n' "$SITE"
 }
 
-# Never part of `all`. A full, non-deterministic LLM rewrite of a file a human
-# reviewed: it can rename series that already exist, which changes /series URLs.
-# It runs only because verify:facets said so, and only when someone types it.
+# Runs automatically, but only when `verify` found a series canonicalisation has
+# never seen. It is a full, non-deterministic rewrite of series.csv, so what
+# makes it safe to leave unattended is the guard inside the script: it refuses to
+# write if the answer would retire a slug that is already committed, because
+# those are live /series URLs. Growing the taxonomy is the only outcome it will
+# accept on its own; anything else stops here with the diff on screen.
 stage_canonicalize() {
-  say "canonicalize:series  (rewrites series.csv in full, not idempotent)"
-  pnpm canonicalize:series
-  pnpm verify:facets || true
-  git --no-pager diff -- data/facets/series.csv
-  printf '\n--- Review that diff line by line, then:  pnpm corpus:update topics\n\n'
+  say "canonicalize:series  (new series found; rewrites series.csv in full)"
+  pnpm canonicalize:series || die "canonicalize:series refused the answer (above)"
+
+  git --no-pager diff --stat -- data/facets/series.csv
+
+  # The taxonomy changed under sermon_facets.csv, so the mapping has to be
+  # rebuilt against it before anything downstream reads either.
+  say "derive:facets  (re-mapping sermons onto the new series)"
+  pnpm derive:facets
+  pnpm extract:scripture
+
+  local rc=0
+  pnpm verify:facets || rc=$?
+  [ "$rc" -eq 0 ] || die "verify:facets still unhappy after canonicalisation (rc=$rc)"
+  NEW_SERIES=0
 }
 
 NEW_SERIES=0
@@ -287,6 +301,9 @@ case "$STAGE" in
     stage_facets
     stage_topics
     stage_verify
+    # `[ ... ] && stage_...` would return 1 on the common path and set -e would
+    # take the whole run down with it.
+    if [ "$NEW_SERIES" -eq 1 ]; then stage_canonicalize; fi
     stage_commit
     stage_index
     stage_eval

@@ -4,6 +4,7 @@ import {
   buildSeriesRows,
   kindOf,
   lenientKey,
+  retiredSlugs,
   SERIES_COLUMNS,
   type SeriesDecision,
   type SeriesRow,
@@ -149,5 +150,36 @@ describe("buildSeriesRows", () => {
     for (const column of SERIES_COLUMNS) {
       expect(row).toHaveProperty(column);
     }
+  });
+});
+
+describe("retiredSlugs", () => {
+  /**
+   * canonicalize:series rewrites series.csv in full from a non-deterministic
+   * model answer. Adding a series is harmless; losing one is not -- a slug that
+   * is already committed is a /series URL somebody may have linked to, and the
+   * merge that removes it is exactly what the pass is designed to do.
+   *
+   * The line is git: a slug in the last commit is live, a slug that only exists
+   * in this run is not.
+   */
+  it("says nothing when the taxonomy only grows", () => {
+    expect(
+      retiredSlugs(["cfw-1", "o-livro-dos-reis"], ["cfw-1", "o-livro-dos-reis", "cfw-2"]),
+    ).toEqual([]);
+  });
+
+  it("catches a committed slug the model merged away", () => {
+    expect(retiredSlugs(["cfw-1", "atributos-de-deus"], ["cfw-1", "os-atributos-de-deus"])).toEqual(
+      ["atributos-de-deus"],
+    );
+  });
+
+  it("catches every one of them, not just the first", () => {
+    expect(retiredSlugs(["a", "b", "c"], ["c"])).toEqual(["a", "b"]);
+  });
+
+  it("treats an absent baseline as nothing to protect", () => {
+    expect(retiredSlugs([], ["cfw-1"])).toEqual([]);
   });
 });

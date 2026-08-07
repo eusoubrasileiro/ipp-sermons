@@ -122,3 +122,20 @@ export function buildSeriesRows(clusters: NameCluster[], decisions: SeriesDecisi
     (a, b) => b.sermon_count - a.sermon_count || a.name.localeCompare(b.name),
   );
 }
+
+/**
+ * Committed series slugs the proposed taxonomy would remove.
+ *
+ * `canonicalize:series` rewrites this file in full from a model answer that is
+ * not deterministic, and merging two names into one is the job it exists to do.
+ * Growing the taxonomy is harmless. Losing a slug is not: a slug already in a
+ * commit is a `/series/<slug>` URL that is live, and the pass has no way to
+ * know which of the names it is folding together somebody has linked to.
+ *
+ * git draws the line. A slug in the last commit is protected; a slug that only
+ * exists in this run is still the model's to rearrange.
+ */
+export function retiredSlugs(committed: string[], proposed: string[]): string[] {
+  const kept = new Set(proposed);
+  return committed.filter((slug) => !kept.has(slug));
+}
