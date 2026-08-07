@@ -41,6 +41,39 @@ type HybridRow = {
  */
 const RERANK_CANDIDATES = 40;
 
+/**
+ * Mirrors `max_per_sermon` in hybrid_search(): the most chunks one sermon may
+ * contribute. Without a reranker the page has to be asked for this many times
+ * `limit`, or it cannot be filled with `limit` distinct sermons.
+ */
+const MAX_CHUNKS_PER_SERMON = 2;
+
+/**
+ * The chunks belonging to the best `limit` sermons, in the ranker's order.
+ *
+ * `limit` counts sermons, because a sermon is what the reader is looking for --
+ * the page already says "7 sermões" and the card already folds a sermon's extra
+ * passages into itself. Slicing the chunk list instead spent that budget on the
+ * extra passages: ten results were seven sermons, and the eighth-best sermon was
+ * never returned at all.
+ *
+ * The extra passages are kept, they just stop costing another sermon its place.
+ */
+function topSermons<T extends { sermon_id: string }>(rows: T[], limit: number): T[] {
+  const seen = new Set<string>();
+  const kept: T[] = [];
+
+  for (const row of rows) {
+    if (!seen.has(row.sermon_id)) {
+      if (seen.size === limit) continue;
+      seen.add(row.sermon_id);
+    }
+    kept.push(row);
+  }
+
+  return kept;
+}
+
 export type SearchDeps = {
   prisma: PrismaClient;
   embeddings: EmbeddingsClient;
@@ -77,7 +110,7 @@ export async function search(
   const [queryVector] = await deps.embeddings.embed([query]);
   if (!queryVector) throw new Error("failed to embed query");
 
-  const candidateCount = deps.reranker ? RERANK_CANDIDATES : limit;
+  const candidateCount = deps.reranker ? RERANK_CANDIDATES : limit * MAX_CHUNKS_PER_SERMON;
 
   // The vector literal and dimension are interpolated (the dimension because
   // Postgres requires literal type modifiers); both are our own values, never
@@ -110,31 +143,37 @@ export async function search(
 
   if (!deps.reranker) {
     return {
-      results: rows.slice(0, limit).map((r) => toSearchResult(r, r.score)),
+      results: topSermons(rows, limit).map((r) => toSearchResult(r, r.score)),
       reranked: false,
     };
   }
 
   // A reranker failure must never fail the search: fall back to the RRF order
   // we already have. Degrading to a slightly worse ranking beats an error page.
+  // The reranker orders chunks, so it is asked for enough of them to still
+  // yield `limit` sermons once the extra passages are folded in.
   const ranked = await deps.reranker.rerank(
     query,
     rows.map((r) => r.content),
-    limit,
+    limit * MAX_CHUNKS_PER_SERMON,
   );
 
   if (!ranked) {
     return {
-      results: rows.slice(0, limit).map((r) => toSearchResult(r, r.score)),
+      results: topSermons(rows, limit).map((r) => toSearchResult(r, r.score)),
       reranked: false,
     };
   }
 
-  const results: SearchResult[] = [];
-  for (const { index, score } of ranked) {
-    const row = rows[index];
-    if (row) results.push(toSearchResult(row, score));
-  }
+  const scored = ranked
+    .map(({ index, score }) => ({ row: rows[index], score }))
+    .filter((r): r is { row: HybridRow; score: number } => r.row !== undefined);
 
-  return { results, reranked: true };
+  return {
+    results: topSermons(
+      scored.map((s) => ({ ...s.row, score: s.score })),
+      limit,
+    ).map((r) => toSearchResult(r, r.score)),
+    reranked: true,
+  };
 }
