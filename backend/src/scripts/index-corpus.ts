@@ -11,6 +11,7 @@ const { Prisma, PrismaClient } = pkg;
 import { chunkHash, chunkText } from "../lib/chunking.ts";
 import { loadSermons, readTranscript, type SermonRecord } from "../lib/corpus.ts";
 import { createOpenRouterEmbeddings, EMBEDDING_DIMS, toVectorLiteral } from "../lib/embeddings.ts";
+import { prunePlan } from "../lib/prune.ts";
 import { createUsageMeter } from "../lib/usage.ts";
 
 /**
@@ -80,6 +81,24 @@ async function main(): Promise<void> {
 
   console.log(`corpus: ${sermons.length} sermons eligible, ${skipped.length} skipped`);
   if (args.limit) console.log(`--limit ${args.limit}: indexing ${selected.length}`);
+
+  // Before anything is embedded, so an implausible plan costs nothing and a
+  // stale row cannot outlive the run that should have removed it. Skipped
+  // under --limit, where the corpus is deliberately partial and every sermon
+  // past the limit would look deleted.
+  if (!args.limit) {
+    const indexed = await prisma.sermon.findMany({ select: { id: true } });
+    const stale = prunePlan(
+      indexed.map((s) => s.id),
+      sermons.map((s) => s.id),
+    );
+    if (stale.length > 0) {
+      // Chunks, scriptures and topics go with them: every relation to Sermon
+      // is onDelete: Cascade.
+      await prisma.sermon.deleteMany({ where: { id: { in: stale } } });
+      console.log(`pruned ${stale.length} sermon(s) the corpus no longer offers`);
+    }
+  }
 
   let chunksSeen = 0;
   let chunksEmbedded = 0;
