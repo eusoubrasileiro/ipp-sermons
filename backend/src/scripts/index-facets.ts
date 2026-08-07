@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "@prisma/client";
 import { parseCsv } from "../lib/corpus.ts";
-import { assertMatched } from "../lib/facets/csv.ts";
+import { int } from "../lib/facets/csv.ts";
+import { scripturePayload, topicPayload } from "../lib/facets/load-payload.ts";
 import { buildVariantIndex, resolveSeries } from "../lib/facets/variants.ts";
 
 /**
@@ -16,9 +17,9 @@ import { buildVariantIndex, resolveSeries } from "../lib/facets/variants.ts";
  * is re-run. Tying them together would mean paying to re-embed 20,000 chunks
  * to fix one series name.
  *
- * Idempotent: every write is an upsert keyed on the natural key, and the
- * derived tables are cleared for the sermons being rewritten rather than
- * globally, so a partial run cannot empty the site.
+ * Idempotent: reference tables are upserts keyed on the natural key, and the
+ * two derived tables are replaced wholesale inside a transaction, so a partial
+ * run cannot empty the site.
  */
 const { PrismaClient } = pkg;
 
@@ -26,11 +27,6 @@ const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../d
 
 const facetsFile = (name: string) => join(DATA_DIR, "facets", name);
 const readFacets = async (name: string) => parseCsv(await readFile(facetsFile(name), "utf8"));
-
-const int = (v: string | undefined): number | null => {
-  const n = Number.parseInt((v ?? "").trim(), 10);
-  return Number.isFinite(n) ? n : null;
-};
 
 const prisma = new PrismaClient();
 
@@ -153,24 +149,15 @@ async function loadScriptures(): Promise<{ rows: number; skipped: number }> {
   );
 
   // Replace wholesale: the derivation is authoritative, and a chapter that
-  // stopped being derived must stop being listed.
-  await prisma.sermonScripture.deleteMany({});
+  // stopped being derived must stop being listed. Build and validate the
+  // payload before the delete, then do both in one transaction — the old order
+  // emptied the table and only then threw, on a production deploy.
+  const payload = scripturePayload(rows, sermons, books);
 
-  const payload = rows
-    .filter((r) => sermons.has((r.sermon_id ?? "").trim()) && books.has((r.book_slug ?? "").trim()))
-    .map((r) => ({
-      sermonId: (r.sermon_id ?? "").trim(),
-      bookSlug: (r.book_slug ?? "").trim(),
-      chapter: int(r.chapter) ?? 0,
-      verseStart: int(r.verse_start),
-      verseEnd: int(r.verse_end),
-      source: (r.source ?? "titulo").trim(),
-      isPrimary: (r.is_primary ?? "true").trim() !== "false",
-    }));
-
-  assertMatched("sermon_scriptures.csv (sermon_id, book_slug)", rows.length, payload.length);
-
-  await prisma.sermonScripture.createMany({ data: payload, skipDuplicates: true });
+  await prisma.$transaction([
+    prisma.sermonScripture.deleteMany({}),
+    prisma.sermonScripture.createMany({ data: payload, skipDuplicates: true }),
+  ]);
   return { rows: payload.length, skipped: rows.length - payload.length };
 }
 
@@ -189,20 +176,12 @@ async function loadSermonTopics(): Promise<number> {
     (await prisma.sermon.findMany({ select: { id: true } })).map((s) => s.id),
   );
 
-  await prisma.sermonTopic.deleteMany({});
-  const payload = rows
-    .filter(
-      (r) => sermons.has((r.sermon_id ?? "").trim()) && topics.has((r.topico_slug ?? "").trim()),
-    )
-    .map((r) => ({
-      sermonId: (r.sermon_id ?? "").trim(),
-      topicSlug: (r.topico_slug ?? "").trim(),
-      confidence: Number.parseFloat(r.confianca ?? "1") || 1,
-    }));
+  const payload = topicPayload(rows, sermons, topics);
 
-  assertMatched("sermon_topics.csv (sermon_id, topico_slug)", rows.length, payload.length);
-
-  await prisma.sermonTopic.createMany({ data: payload, skipDuplicates: true });
+  await prisma.$transaction([
+    prisma.sermonTopic.deleteMany({}),
+    prisma.sermonTopic.createMany({ data: payload, skipDuplicates: true }),
+  ]);
   return payload.length;
 }
 

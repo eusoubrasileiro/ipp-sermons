@@ -39,3 +39,9 @@ export function assertMatched(expected: string, rows: number, matched: number): 
     throw new Error(`${rows} rows read but none matched a known key — expected ${expected}`);
   }
 }
+
+/** A CSV integer cell, or null when the column is blank — a whole-chapter reference. */
+export function int(value: string | undefined): number | null {
+  const n = Number.parseInt((value ?? "").trim(), 10);
+  return Number.isFinite(n) ? n : null;
+}
