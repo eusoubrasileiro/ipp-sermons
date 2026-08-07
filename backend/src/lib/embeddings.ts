@@ -12,6 +12,7 @@
  */
 
 import { FatalOpenRouterError, postJson, RetryableError } from "./openrouter.ts";
+import type { Usage } from "./usage.ts";
 
 export const EMBEDDING_MODEL = "google/gemini-embedding-001";
 
@@ -70,6 +71,8 @@ export type OpenRouterOptions = {
   timeoutMs?: number;
   retryDelayMs?: number;
   fetchImpl?: typeof fetch;
+  /** Where a run adds up what it spent — see lib/usage.ts. */
+  onUsage?: (usage: Usage | null) => void;
 };
 
 export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsClient {
@@ -77,6 +80,7 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
     apiKey,
     model = EMBEDDING_MODEL,
     dimensions = EMBEDDING_DIMS,
+    onUsage,
     maxRetries = 5,
     timeoutMs = 60_000,
     retryDelayMs,
@@ -91,12 +95,13 @@ export function createOpenRouterEmbeddings(opts: OpenRouterOptions): EmbeddingsC
         {
           url: OPENROUTER_URL,
           apiKey,
-          body: { model, input: inputs, dimensions },
+          body: { model, input: inputs, dimensions, usage: { include: true } },
           label: "embedding",
           maxRetries,
           timeoutMs,
           ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
           ...(fetchImpl === undefined ? {} : { fetchImpl }),
+          ...(onUsage === undefined ? {} : { onUsage }),
         },
         (payload) => {
           const body = payload as {

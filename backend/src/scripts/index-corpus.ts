@@ -16,6 +16,7 @@ import {
   type SermonRecord,
 } from "../lib/corpus.ts";
 import { createOpenRouterEmbeddings, EMBEDDING_DIMS, toVectorLiteral } from "../lib/embeddings.ts";
+import { createUsageMeter } from "../lib/usage.ts";
 
 /**
  * One-shot corpus indexer: transcripts on disk -> chunks + embeddings in Postgres.
@@ -74,7 +75,8 @@ async function main(): Promise<void> {
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
   const prisma = new PrismaClient();
-  const embeddings = createOpenRouterEmbeddings({ apiKey });
+  const meter = createUsageMeter();
+  const embeddings = createOpenRouterEmbeddings({ apiKey, onUsage: meter.record });
 
   const csvText = await readFile(join(args.dataDir, "metadata.csv"), "utf8");
   const { sermons, skipped } = loadSermons(csvText);
@@ -87,7 +89,6 @@ async function main(): Promise<void> {
   let chunksSeen = 0;
   let chunksEmbedded = 0;
   let chunksSkipped = 0;
-  let tokensApprox = 0;
 
   for (const [i, sermon] of selected.entries()) {
     let transcript: string;
@@ -147,7 +148,6 @@ async function main(): Promise<void> {
                 embedding = EXCLUDED.embedding`;
 
         chunksEmbedded++;
-        tokensApprox += Math.ceil(chunk.content.split(/\s+/).length * 1.6);
       }
     }
 
@@ -158,12 +158,14 @@ async function main(): Promise<void> {
     );
   }
 
-  // $0.15 per million tokens, per OpenRouter's listing for this model.
-  const cost = (tokensApprox / 1_000_000) * 0.15;
   console.log(
-    `\ndone: ${chunksEmbedded} chunks embedded, ${chunksSkipped} unchanged, ` +
-      `${chunksSeen} total\n~${tokensApprox.toLocaleString()} tokens, ~$${cost.toFixed(2)}`,
+    `\ndone: ${chunksEmbedded} chunks embedded, ${chunksSkipped} unchanged, ${chunksSeen} total`,
   );
+  // Reported by OpenRouter, not multiplied out of a price list here: the list
+  // goes stale without anyone noticing, and the token count was itself a guess
+  // from word counts.
+  const spend = meter.summary();
+  if (spend) console.log(spend);
 
   await prisma.$disconnect();
 }

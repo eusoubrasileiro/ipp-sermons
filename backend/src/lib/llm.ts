@@ -45,6 +45,7 @@ export const LLM_MODEL = "openai/gpt-5.6-luna";
 export const LLM_MODEL_STRONG = "openai/gpt-5.6-luna";
 
 import { postJson, RetryableError } from "./openrouter.ts";
+import type { Usage } from "./usage.ts";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -71,6 +72,8 @@ export type LlmOptions = {
   /** Overridable so tests do not sit through the backoff. */
   retryDelayMs?: number;
   fetchImpl?: typeof fetch;
+  /** Where a run adds up what it spent — see lib/usage.ts. */
+  onUsage?: (usage: Usage | null) => void;
 };
 
 /**
@@ -101,6 +104,7 @@ export function createOpenRouterLlm(opts: LlmOptions): LlmClient {
     timeoutMs = 120_000,
     retryDelayMs,
     fetchImpl,
+    onUsage,
   } = opts;
 
   return {
@@ -119,10 +123,14 @@ export function createOpenRouterLlm(opts: LlmOptions): LlmClient {
           timeoutMs,
           ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
           ...(fetchImpl === undefined ? {} : { fetchImpl }),
+          ...(onUsage === undefined ? {} : { onUsage }),
           body: {
             model: request.model ?? defaultModel,
             messages,
             temperature: request.temperature ?? 0,
+            // Without this the reply carries token counts but no `cost`, and the
+            // only way back to dollars is a price table that goes stale.
+            usage: { include: true },
             ...(request.maxTokens ? { max_tokens: request.maxTokens } : {}),
             response_format: {
               type: "json_schema",

@@ -13,6 +13,8 @@
  * short batch) or abandon the call by throwing `FatalOpenRouterError` (a
  * response that violates a contract no retry will satisfy).
  */
+import { readUsage, type Usage } from "./usage.ts";
+
 export class FatalOpenRouterError extends Error {
   // Typed as string rather than a literal so subclasses can name themselves --
   // `FatalEmbeddingError` narrows the contract further for the pgvector case.
@@ -30,6 +32,12 @@ export type OpenRouterCall = {
   body: unknown;
   /** Names the operation in the give-up message: "embedding", "completion". */
   label: string;
+  /**
+   * Called once per successful response with what it cost. Reported here rather
+   * than derived from a price table by the caller: the table goes stale and the
+   * token counts would be guesses.
+   */
+  onUsage?: (usage: Usage | null) => void;
   maxRetries?: number;
   timeoutMs?: number;
   /** Overridable so tests do not sit through the backoff. */
@@ -48,6 +56,7 @@ export async function postJson<T>(
     apiKey,
     body,
     label,
+    onUsage,
     maxRetries = 5,
     timeoutMs = 60_000,
     retryDelayMs = 500,
@@ -80,7 +89,11 @@ export async function postJson<T>(
       // and time, so surface it immediately.
       if (!res.ok) throw new FatalOpenRouterError(`OpenRouter ${res.status}: ${await res.text()}`);
 
-      return parse(await res.json());
+      const decoded = await res.json();
+      // Before `parse`, which may throw RetryableError: the attempt was billed
+      // whether or not its content turned out to be usable.
+      onUsage?.(readUsage(decoded));
+      return parse(decoded);
     } catch (err) {
       if (err instanceof FatalOpenRouterError) throw err;
       lastError = err instanceof Error ? err : new Error(String(err));

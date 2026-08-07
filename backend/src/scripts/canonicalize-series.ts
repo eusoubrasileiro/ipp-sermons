@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
 import { clusterNames, type NameCluster } from "../lib/facets/cluster.ts";
 import { writeCsv } from "../lib/facets/csv.ts";
 import {
@@ -12,6 +13,7 @@ import {
 } from "../lib/facets/series-taxonomy.ts";
 import { buildVariantIndex } from "../lib/facets/variants.ts";
 import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
+import { createUsageMeter } from "../lib/usage.ts";
 
 /**
  * Turns the raw series names the title parser produced into a canonical,
@@ -36,7 +38,9 @@ import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
  * harmless; merging away a live `/series/<slug>` is not, and the model has no
  * way to know which names somebody has linked to.
  */
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
+
+/** What this run spends, reported by OpenRouter rather than estimated. */
+const meter = createUsageMeter();
 const DRY_RUN = process.argv.includes("--dry-run");
 
 const SCHEMA = {
@@ -126,7 +130,7 @@ async function main(): Promise<void> {
     })
     .join("\n\n");
 
-  const llm = createOpenRouterLlm({ apiKey, model: LLM_MODEL_STRONG });
+  const llm = createOpenRouterLlm({ apiKey, model: LLM_MODEL_STRONG, onUsage: meter.record });
   const answer = await llm.complete<{ series: SeriesDecision[] }>({
     system: SYSTEM,
     user: prompt,
@@ -192,3 +196,8 @@ async function writeSeries(
 }
 
 await main();
+
+// Reported by OpenRouter, not multiplied out of a price list: the list goes
+// stale without anyone noticing. Silent when the run made no paid call.
+const spend = meter.summary();
+if (spend) console.log(`\n${spend}`);

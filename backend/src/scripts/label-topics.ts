@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv, readTranscript } from "../lib/corpus.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
 import { cliLimit, reportFailures, runBatch } from "../lib/facets/batch.ts";
 import { type CsvValue, writeCsv } from "../lib/facets/csv.ts";
 import {
@@ -11,6 +12,7 @@ import {
   type TopicLabel,
 } from "../lib/facets/topics.ts";
 import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
+import { createUsageMeter } from "../lib/usage.ts";
 
 /**
  * Labels every sermon against the committed taxonomy.
@@ -27,7 +29,9 @@ import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
  * 56-topic taxonomy that a cache of negatives is not worth the extra file, and
  * the count is printed so the cost of a re-run is visible.
  */
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
+
+/** What this run spends, reported by OpenRouter rather than estimated. */
+const meter = createUsageMeter();
 const DRY_RUN = process.argv.includes("--dry-run");
 const FLUSH_EVERY = 40;
 
@@ -121,7 +125,7 @@ async function label(
     outPath: string;
   },
 ): Promise<void> {
-  const llm = createOpenRouterLlm({ apiKey: ctx.apiKey });
+  const llm = createOpenRouterLlm({ apiKey: ctx.apiKey, onUsage: meter.record });
   const schema = {
     type: "object",
     properties: {
@@ -196,3 +200,8 @@ function report(rows: Record<string, CsvValue>[], taxonomy: TaxonomyRow[], total
 }
 
 await main();
+
+// Reported by OpenRouter, not multiplied out of a price list: the list goes
+// stale without anyone noticing. Silent when the run made no paid call.
+const spend = meter.summary();
+if (spend) console.log(`\n${spend}`);

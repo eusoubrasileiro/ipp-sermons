@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv, readTranscript } from "../lib/corpus.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
 import { cliLimit, reportFailures, runBatch } from "../lib/facets/batch.ts";
 import { loadBibleBooks } from "../lib/facets/bible.ts";
 import { type CsvValue, writeCsv } from "../lib/facets/csv.ts";
@@ -12,6 +13,7 @@ import {
   type ScriptureDecision,
 } from "../lib/facets/extract-prompt.ts";
 import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
+import { createUsageMeter } from "../lib/usage.ts";
 
 /**
  * Finds the passage for the sermons whose title never named one.
@@ -31,7 +33,9 @@ import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
  * `sermon_scriptures.csv` is then rebuilt as (title rows) + (cached decisions),
  * so it must be regenerated after `derive:facets`, which writes title rows only.
  */
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
+
+/** What this run spends, reported by OpenRouter rather than estimated. */
+const meter = createUsageMeter();
 const DRY_RUN = process.argv.includes("--dry-run");
 /** Flushed this often so a crash costs a handful of calls, not the whole run. */
 const FLUSH_EVERY = 20;
@@ -127,7 +131,7 @@ async function askModel(
   apiKey: string,
   cachePath: string,
 ): Promise<void> {
-  const llm = createOpenRouterLlm({ apiKey });
+  const llm = createOpenRouterLlm({ apiKey, onUsage: meter.record });
   const schema = buildSchema(books);
   const failures = await runBatch(
     todo,
@@ -178,3 +182,8 @@ async function writeScriptures(
 }
 
 await main();
+
+// Reported by OpenRouter, not multiplied out of a price list: the list goes
+// stale without anyone noticing. Silent when the run made no paid call.
+const spend = meter.summary();
+if (spend) console.log(`\n${spend}`);

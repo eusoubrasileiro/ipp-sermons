@@ -1,9 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
 import { writeCsv } from "../lib/facets/csv.ts";
 import { TAXONOMY_COLUMNS, type TaxonomyProposal, taxonomyRows } from "../lib/facets/topics.ts";
 import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
+import { createUsageMeter } from "../lib/usage.ts";
 
 /**
  * Proposes the topic taxonomy from the corpus itself.
@@ -20,7 +22,9 @@ import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
  * tokens, so the stronger model costs cents and the output is committed as
  * ground truth. `label-topics.ts` may then only pick from it.
  */
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
+
+/** What this run spends, reported by OpenRouter rather than estimated. */
+const meter = createUsageMeter();
 const DRY_RUN = process.argv.includes("--dry-run");
 
 const SCHEMA = {
@@ -101,7 +105,7 @@ async function main(): Promise<void> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const llm = createOpenRouterLlm({ apiKey, model: LLM_MODEL_STRONG });
+  const llm = createOpenRouterLlm({ apiKey, model: LLM_MODEL_STRONG, onUsage: meter.record });
   const answer = await llm.complete<{ topicos: TaxonomyProposal[] }>({
     system: SYSTEM,
     user: lines.join("\n"),
@@ -127,3 +131,8 @@ async function main(): Promise<void> {
 }
 
 await main();
+
+// Reported by OpenRouter, not multiplied out of a price list: the list goes
+// stale without anyone noticing. Silent when the run made no paid call.
+const spend = meter.summary();
+if (spend) console.log(`\n${spend}`);
