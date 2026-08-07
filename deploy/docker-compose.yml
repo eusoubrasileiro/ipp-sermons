@@ -68,6 +68,43 @@ services:
       - ipp_internal
     restart: "no"
 
+  # Embeds whatever the new image's data/ carries that this database does not
+  # already have. The corpus ships inside the image, so a release is the only
+  # thing that can change it.
+  #
+  # Until this existed there was no path in the repository at all for a new
+  # sermon's embeddings to reach production -- `db` publishes no port, so there
+  # was not even a tunnel to run the indexer over. It got there by hand.
+  #
+  # Content-hash keyed (index-corpus.ts), so a redeploy of an unchanged corpus
+  # makes no paid call: it costs a couple of minutes of lookups against a
+  # container-local Postgres and writes nothing.
+  #
+  # Ordered before `facets` on purpose, not by taste: index-facets.ts filters
+  # scripture and topic rows to the sermon ids already in the database, so
+  # loading facets first drops every new sermon's facets in silence.
+  #
+  # `app` therefore waits on this transitively, which is what we want: the old
+  # container keeps serving throughout, and the new one is only cut over once
+  # its data is actually there. A failure here aborts the deploy before `app`
+  # is recreated at all.
+  index:
+    image: ghcr.io/eusoubrasileiro/ipp-sermons:${IMAGE_TAG:-latest}
+    container_name: ipp-sermons-index
+    env_file: .env
+    environment:
+      # Explicit, not inherited: index-corpus.ts defaults to "../data", which
+      # resolves to /data from the image's /app workdir.
+      CORPUS_DIR: /app/data
+    command: ["node", "dist/scripts/index-corpus.js"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 512m
+    networks:
+      - ipp_internal
+    restart: "no"
+
   # Loads the committed facet tables (data/facets/*.csv, which ship inside the
   # image) into Postgres after the migrations have run.
   #
@@ -81,7 +118,7 @@ services:
     env_file: .env
     command: ["node", "dist/scripts/index-facets.js"]
     depends_on:
-      migrate:
+      index:
         condition: service_completed_successfully
     mem_limit: 256m
     networks:
