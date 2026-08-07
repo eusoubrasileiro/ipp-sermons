@@ -71,3 +71,7 @@ docs/**/*.html
 # exposure: the pair is already reachable from published history (9bec37b
 # onward), so rotating the credential is the actual fix, not this line.
 archive/notebooks/metadata.ipynb
+
+# Experiment output from `pnpm compare:topics`. The decision it informs gets
+# committed; the raw comparison does not.
+.compare/

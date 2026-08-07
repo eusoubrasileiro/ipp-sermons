@@ -114,3 +114,55 @@ export function labelRows(
 
   return rows;
 }
+
+/**
+ * The labelling instruction, shared so that every caller asks the same question.
+ *
+ * `compare-topics` exists to tell one configuration from another; if it also
+ * varied the prompt it would not be comparing anything. Keeping the prompt here
+ * rather than inside the script makes that structural instead of a discipline
+ * somebody has to remember.
+ */
+export const TOPICS_SYSTEM = `Você classifica sermões de uma igreja presbiteriana brasileira (Igreja Presbiteriana Peregrinos) numa taxonomia FECHADA de temas.
+
+Receberá o título, a passagem bíblica quando houver, e trechos da transcrição (início, meio e fim).
+
+Devolva de 1 a ${MAX_TOPICS_PER_SERMON} tópicos, do mais central para o menos central, escolhidos EXCLUSIVAMENTE da lista fornecida.
+
+- confianca: 1.0 quando o tópico é o assunto do sermão; 0.5 quando é tratado de forma relevante mas secundária; abaixo de 0.4 não devolva.
+- Prefira poucos tópicos certos a muitos aproximados. Um sermão marcado com tudo que menciona não ajuda ninguém a encontrá-lo.
+- Não escolha um tópico só porque a palavra aparece: o sermão precisa tratar do assunto.`;
+
+/**
+ * The reply schema, with the taxonomy as a closed enum.
+ *
+ * The enum is the whole guarantee: with `strict: true` the provider constrains
+ * decoding, so a topic outside the taxonomy is unreachable rather than merely
+ * discouraged. A model that only supports `response_format` cannot offer this.
+ */
+export function topicsSchema(known: Set<string>): unknown {
+  return {
+    type: "object",
+    properties: {
+      topicos: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            topico_slug: { type: "string", enum: [...known] },
+            confianca: { type: "number" },
+          },
+          required: ["topico_slug", "confianca"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["topicos"],
+    additionalProperties: false,
+  };
+}
+
+/** What the model reads about one sermon. `body` is the sample or the whole transcript. */
+export function topicsPrompt(title: string, reference: string | undefined, body: string): string {
+  return `Título: ${title}${reference ? `\nPassagem: ${reference}` : ""}\n\nTranscrição:\n${body}`;
+}

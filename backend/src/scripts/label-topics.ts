@@ -9,7 +9,10 @@ import {
   MAX_TOPICS_PER_SERMON,
   SERMON_TOPIC_COLUMNS,
   sampleTranscript,
+  TOPICS_SYSTEM,
   type TopicLabel,
+  topicsPrompt,
+  topicsSchema,
 } from "../lib/facets/topics.ts";
 import { createOpenRouterLlm, LLM_MODEL } from "../lib/llm.ts";
 import { createUsageMeter } from "../lib/usage.ts";
@@ -36,16 +39,6 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const FLUSH_EVERY = 40;
 
 const LIMIT = cliLimit();
-
-const SYSTEM = `Você classifica sermões de uma igreja presbiteriana brasileira (Igreja Presbiteriana Peregrinos) numa taxonomia FECHADA de temas.
-
-Receberá o título, a passagem bíblica quando houver, e trechos da transcrição (início, meio e fim).
-
-Devolva de 1 a ${MAX_TOPICS_PER_SERMON} tópicos, do mais central para o menos central, escolhidos EXCLUSIVAMENTE da lista fornecida.
-
-- confianca: 1.0 quando o tópico é o assunto do sermão; 0.5 quando é tratado de forma relevante mas secundária; abaixo de 0.4 não devolva.
-- Prefira poucos tópicos certos a muitos aproximados. Um sermão marcado com tudo que menciona não ajuda ninguém a encontrá-lo.
-- Não escolha um tópico só porque a palavra aparece: o sermão precisa tratar do assunto.`;
 
 type TaxonomyRow = {
   topico_slug: string;
@@ -126,25 +119,7 @@ async function label(
   },
 ): Promise<void> {
   const llm = createOpenRouterLlm({ apiKey: ctx.apiKey, onUsage: meter.record });
-  const schema = {
-    type: "object",
-    properties: {
-      topicos: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            topico_slug: { type: "string", enum: [...ctx.known] },
-            confianca: { type: "number" },
-          },
-          required: ["topico_slug", "confianca"],
-          additionalProperties: false,
-        },
-      },
-    },
-    required: ["topicos"],
-    additionalProperties: false,
-  };
+  const schema = topicsSchema(ctx.known);
 
   const failures = await runBatch(
     todo,
@@ -152,8 +127,8 @@ async function label(
       const transcript = await readTranscript(DATA_DIR, sermon.transcriptFile);
       const ref = ctx.scriptures.get(sermon.id);
       const answer = await llm.complete<{ topicos: TopicLabel[] }>({
-        system: `${SYSTEM}\n\nTÓPICOS DISPONÍVEIS:\n${ctx.catalogue}`,
-        user: `Título: ${sermon.title}${ref ? `\nPassagem: ${ref}` : ""}\n\nTranscrição (amostra):\n${sampleTranscript(transcript)}`,
+        system: `${TOPICS_SYSTEM}\n\nTÓPICOS DISPONÍVEIS:\n${ctx.catalogue}`,
+        user: topicsPrompt(sermon.title, ref, sampleTranscript(transcript)),
         schema,
         schemaName: "temas_do_sermao",
       });

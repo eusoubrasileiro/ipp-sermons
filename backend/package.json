@@ -22,7 +22,8 @@
     "canonicalize:series": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/canonicalize-series.ts",
     "index:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/index-facets.ts",
     "check:spotify": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/check-spotify.ts",
-    "verify:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/verify-facets.ts"
+    "verify:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/verify-facets.ts",
+    "compare:topics": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/compare-topics.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

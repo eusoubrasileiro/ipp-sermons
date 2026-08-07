@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Busca de serm\u00f5es da Igreja Presbiteriana Peregrinos \u2014 hybrid search over transcribed sermons",
+  "description": "Busca de sermões da Igreja Presbiteriana Peregrinos — hybrid search over transcribed sermons",
   "engines": {
     "node": ">=24"
   },
@@ -38,7 +38,8 @@
     "verify:facets": "pnpm --filter @ipp/backend verify:facets",
     "corpus:update": "bash scripts/corpus-update.sh",
     "prepare": "husky",
-    "eval": "pnpm --filter @ipp/backend eval"
+    "eval": "pnpm --filter @ipp/backend eval",
+    "compare:topics": "pnpm --filter @ipp/backend compare:topics"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
