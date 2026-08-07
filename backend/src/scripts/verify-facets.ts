@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { loadSermons, parseCsv } from "../lib/corpus.ts";
 import { loadBibleBooks } from "../lib/facets/bible.ts";
 import { slugify } from "../lib/facets/slugify.ts";
+import { type Problem, verdict } from "../lib/facets/verdict.ts";
 
 /**
  * Pre-flight check on the committed facet files.
@@ -18,13 +19,13 @@ import { slugify } from "../lib/facets/slugify.ts";
  * The one check that earns its keep on every corpus update is the last: a NEW
  * series name that canonicalisation has never seen. That is the only thing a
  * human needs to look at after adding sermons, which is what keeps review to
- * two or three lines a quarter rather than a fifty-row sitting.
+ * two or three lines a quarter rather than a fifty-row sitting. It gets its own
+ * exit code -- 0 clean, 1 blocked, 2 loadable but worth a look -- so a caller
+ * can branch on it without grepping Portuguese out of stdout.
  */
 const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
 
 const read = async (name: string) => parseCsv(await readFile(join(DATA_DIR, name), "utf8"));
-
-type Problem = { severity: "erro" | "aviso"; message: string };
 
 async function main(): Promise<void> {
   const problems: Problem[] = [];
@@ -127,17 +128,16 @@ async function main(): Promise<void> {
   console.log(`séries             ${series.length}`);
   console.log(`livros             ${books.length}`);
 
-  const errors = problems.filter((p) => p.severity === "erro");
-  const warnings = problems.filter((p) => p.severity === "aviso");
+  const { errors, warnings, exitCode } = verdict(problems);
 
   for (const p of warnings) console.log(`AVISO  ${p.message}`);
   for (const p of errors) console.error(`ERRO   ${p.message}`);
 
-  if (errors.length > 0) {
-    console.error(`\n${errors.length} problema(s) bloqueante(s).`);
-    process.exit(1);
-  }
-  console.log(`\nOK${warnings.length ? ` (${warnings.length} aviso(s))` : ""}`);
+  if (errors.length > 0) console.error(`\n${errors.length} problema(s) bloqueante(s).`);
+  else console.log(`\nOK${warnings.length ? ` (${warnings.length} aviso(s))` : ""}`);
+
+  // 0 clean, 1 blocked, 2 loadable but a human should look — see verdict.ts.
+  process.exit(exitCode);
 }
 
 await main();
