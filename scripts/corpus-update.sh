@@ -202,6 +202,19 @@ stage_release() {
 
   say "deploy $sha  (migrate -> index -> facets -> app)"
   deploy_tag "$sha"
+  wait_for_site
+}
+
+# `docker compose up -d` returns when the container is started, not when Traefik
+# has re-registered it. Asserting straight afterwards read the gap as a failure
+# and would have rolled a perfectly good deploy back.
+wait_for_site() {
+  local tries=0
+  until curl -fsS -o /dev/null "$SITE/api/health"; do
+    tries=$((tries + 1))
+    [ "$tries" -lt 60 ] || die "$SITE never came back after the deploy"
+    sleep 2
+  done
 }
 
 deploy_tag() {
@@ -220,6 +233,9 @@ deploy_tag() {
 stage_smoke() {
   say "smoke"
   local want got
+  # Also here, not only in release: `smoke` is meant to be runnable on its own
+  # after a hand deploy, and would hit the same window.
+  wait_for_site
   want=$(pnpm verify:corpus | sed -n 's/^indexable sermons: \([0-9]*\).*/\1/p')
   got=$(curl -fsS "$SITE/api/health" | jq -r .sermons)
   printf 'corpus %s / production %s\n' "$want" "$got"
