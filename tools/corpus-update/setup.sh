@@ -10,8 +10,10 @@ if [ ! -x "$VENV/bin/python" ]; then
   uv venv --python 3.12 "$VENV"
 fi
 
+# pytest is here rather than in the workspace because this directory is outside
+# it: `pnpm test` cannot see these files and must not be widened to.
 uv pip install --python "$VENV/bin/python" \
-  yt-dlp pandas rapidfuzz spacy language_tool_python requests click
+  yt-dlp pandas rapidfuzz spacy language_tool_python requests click pytest
 
 # VIRTUAL_ENV must be exported: `spacy download` shells out to `uv pip install`,
 # which refuses to guess a target environment.

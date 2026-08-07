@@ -121,10 +121,24 @@ def glob_escape(s: str) -> str:
 
 
 def done_ids() -> set[str]:
+    """The soundcloud ids already turned into rows, as strings.
+
+    `str()` is load-bearing. `build_row` writes the id as an int, and must keep
+    doing so -- append.py's DTYPES are what stop a new CSV line from formatting
+    differently to the 455 already in metadata.csv. The comparison side is the
+    regex capture in `pending`, which is always a string, so the conversion has
+    to happen here. It did not, and `"111" not in {111}` is always true: every
+    re-run re-cleaned every raw transcript and rewrote every corpus .txt.
+    """
     if not config.ROWS_JSONL.exists():
         return set()
     with config.ROWS_JSONL.open(encoding="utf-8") as f:
-        return {json.loads(line)["id"] for line in f if line.strip()}
+        return {str(json.loads(line)["id"]) for line in f if line.strip()}
+
+
+def pending(raw_paths: list[pathlib.Path], have: set[str]) -> list[pathlib.Path]:
+    """The raw transcripts still to clean, in the order given."""
+    return [p for p in raw_paths if (m := STEM_ID_RE.match(p.stem)) and m["id"] not in have]
 
 
 def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | None:
@@ -185,12 +199,7 @@ def main() -> None:
     config.ensure_dirs()
     config.TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    have = done_ids()
-    todo = [
-        p
-        for p in sorted(config.RAW_DIR.glob("*.txt"))
-        if (m := STEM_ID_RE.match(p.stem)) and m["id"] not in have
-    ]
+    todo = pending(sorted(config.RAW_DIR.glob("*.txt")), done_ids())
     print(f"raw transcripts to process: {len(todo)}", flush=True)
     if not todo:
         return
