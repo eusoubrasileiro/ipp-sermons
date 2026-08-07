@@ -10,6 +10,7 @@ import {
   SERIES_COLUMNS,
   type SeriesDecision,
 } from "../lib/facets/series-taxonomy.ts";
+import { buildVariantIndex } from "../lib/facets/variants.ts";
 import { createOpenRouterLlm, LLM_MODEL_STRONG } from "../lib/llm.ts";
 
 /**
@@ -137,21 +138,19 @@ async function main(): Promise<void> {
 }
 
 /**
- * The slugs in the last commit — the ones whose URLs are live.
+ * The series.csv of the last commit — the taxonomy whose URLs are live.
  *
  * Read from git rather than from disk: the file on disk is what this run is
  * about to overwrite, and on a second run in the same session it would already
  * carry the model's previous answer, which protects nothing.
  */
-function committedSlugs(dataDir: string): string[] {
+function committedSeries(dataDir: string): Record<string, string>[] {
   try {
     const csv = execFileSync("git", ["show", "HEAD:data/facets/series.csv"], {
       cwd: dataDir,
       encoding: "utf8",
     });
-    return parseCsv(csv)
-      .map((r) => (r.slug ?? "").trim())
-      .filter(Boolean);
+    return parseCsv(csv);
   } catch {
     return []; // Not committed yet — there is nothing live to protect.
   }
@@ -162,10 +161,15 @@ async function writeSeries(
   decisions: SeriesDecision[],
   dataDir: string,
 ): Promise<void> {
-  const rows = buildSeriesRows(clusters, decisions);
+  // Two uses of the same baseline, and they are different jobs: the index keeps
+  // a published slug attached to its series when the model re-words the name,
+  // and the check catches what is left -- a merge that would genuinely retire a
+  // URL rather than merely rename its label.
+  const committed = committedSeries(dataDir);
+  const rows = buildSeriesRows(clusters, decisions, buildVariantIndex(committed));
 
   const retired = retiredSlugs(
-    committedSlugs(dataDir),
+    committed.map((r) => (r.slug ?? "").trim()).filter(Boolean),
     rows.map((r) => r.slug),
   );
   if (retired.length > 0) {

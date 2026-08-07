@@ -55,7 +55,34 @@ export function kindOf(name: string): string {
   return "ebd";
 }
 
-export function buildSeriesRows(clusters: NameCluster[], decisions: SeriesDecision[]): SeriesRow[] {
+/**
+ * The slug this cluster already publishes under, if it publishes under one.
+ *
+ * A slug is a URL; a name is a label. Deriving the first from the second means
+ * every re-wording moves the page, and the model re-reads the Westminster
+ * chapter names off example titles on every run -- "Da Escritura Sagrada" and
+ * "Da Sagrada Escritura" are both reachable answers for the same chapter. The
+ * `variants` column is what says the two are the same series, so once a slug is
+ * published it stops following the name.
+ */
+function publishedSlug(cluster: NameCluster, committed?: Map<string, string>): string | null {
+  if (!committed) return null;
+  for (const member of cluster.members) {
+    const prior = committed.get(slugify(member));
+    if (prior) return prior;
+  }
+  return null;
+}
+
+/**
+ * @param committed variant slug -> published series slug, from the committed
+ *   series.csv via `buildVariantIndex`. Omit on a first run.
+ */
+export function buildSeriesRows(
+  clusters: NameCluster[],
+  decisions: SeriesDecision[],
+  committed?: Map<string, string>,
+): SeriesRow[] {
   const byId = new Map(decisions.map((d) => [d.id, d]));
 
   /** Follows merge_into to its end, guarding against a cycle the model invents. */
@@ -71,7 +98,10 @@ export function buildSeriesRows(clusters: NameCluster[], decisions: SeriesDecisi
     const root = resolve(id);
     const decided = byId.get(root);
     const name = decided?.name?.trim() || (clusters[root] as NameCluster).provisional;
-    const slug = slugify(name);
+    const slug =
+      publishedSlug(cluster, committed) ??
+      publishedSlug(clusters[root] as NameCluster, committed) ??
+      slugify(name);
 
     const existing = rows.get(slug);
     if (existing) {

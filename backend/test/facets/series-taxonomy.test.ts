@@ -183,3 +183,62 @@ describe("retiredSlugs", () => {
     expect(retiredSlugs([], ["cfw-1"])).toEqual([]);
   });
 });
+
+describe("buildSeriesRows with a committed taxonomy", () => {
+  /**
+   * The slug is a URL and the name is a label, and deriving one from the other
+   * means every re-wording of a series title silently moves its page.
+   *
+   * The model re-reads the Westminster chapter names from example titles on
+   * every run, so "Da Escritura Sagrada" and "Da Sagrada Escritura" are both
+   * reachable answers for the same chapter. Once published, the slug has to stop
+   * following the name -- `variants` is what says the two are the same series.
+   */
+  const committed = new Map([
+    ["cfw-1", "cfw-1-da-escritura-sagrada"],
+    ["cfw-1-da-escritura-sagrada", "cfw-1-da-escritura-sagrada"],
+  ]);
+
+  it("keeps the published slug when the model re-words the name", () => {
+    const [row] = buildSeriesRows(
+      [cluster("CFW 1", 4)],
+      [decide(0, "CFW 1 — Da Sagrada Escritura")],
+      committed,
+    );
+
+    expect(row).toMatchObject({
+      slug: "cfw-1-da-escritura-sagrada",
+      name: "CFW 1 — Da Sagrada Escritura",
+    });
+  });
+
+  it("still slugifies a series nobody has published yet", () => {
+    const [row] = buildSeriesRows(
+      [cluster("CFW 9", 3)],
+      [decide(0, "CFW 9 — Do Livre-Arbítrio")],
+      committed,
+    );
+
+    expect(row?.slug).toBe("cfw-9-do-livre-arbitrio");
+  });
+
+  it("behaves as before when there is no committed taxonomy", () => {
+    const [row] = buildSeriesRows(
+      [cluster("CFW 1", 4)],
+      [decide(0, "CFW 1 — Da Sagrada Escritura")],
+    );
+
+    expect(row?.slug).toBe("cfw-1-da-sagrada-escritura");
+  });
+
+  it("folds two clusters onto one published slug when the model merges them", () => {
+    const rows = buildSeriesRows(
+      [cluster("CFW 1", 4), cluster("CFW 1 - Escritura", 2)],
+      [decide(0, "CFW 1 — Da Escritura"), decide(1, "CFW 1 — Da Escritura", { merge_into: 0 })],
+      new Map([...committed, ["cfw-1-escritura", "cfw-1-da-escritura-sagrada"]]),
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ slug: "cfw-1-da-escritura-sagrada", sermon_count: 6 });
+  });
+});

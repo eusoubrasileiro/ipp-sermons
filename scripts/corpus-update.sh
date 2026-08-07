@@ -274,7 +274,9 @@ stage_smoke() {
 # accept on its own; anything else stops here with the diff on screen.
 stage_canonicalize() {
   say "canonicalize:series  (new series found; rewrites series.csv in full)"
-  pnpm canonicalize:series || die "canonicalize:series refused the answer (above)"
+  # Exit 1 covers both the guard rejecting a merge and the call failing outright,
+  # so point at the output rather than asserting which one happened.
+  pnpm canonicalize:series || die "canonicalize:series did not write series.csv (reason above)"
 
   git --no-pager diff --stat -- data/facets/series.csv
 
