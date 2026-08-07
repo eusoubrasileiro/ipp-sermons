@@ -68,6 +68,17 @@ describe("workspace scripts", () => {
     expect(missing).toEqual([]);
   });
 
+  it("wraps the commit message the orchestrator writes", () => {
+    // commitlint caps a body line at 100 characters and git never re-wraps a
+    // `-m`, so an over-long line means the commit stage cannot commit at all --
+    // discovered at the end of a run that took days to get there.
+    const sh = readFileSync(join(ROOT, "scripts/corpus-update.sh"), "utf8");
+    const body = sh.slice(sh.indexOf("git commit -q"), sh.indexOf("Ratified-by:"));
+
+    expect(body).not.toBe("");
+    expect(body.split("\n").filter((l) => l.length > 100)).toEqual([]);
+  });
+
   it("names every migration NNN_*.sql", () => {
     // Both the production `migrate` sidecar (`for f in /sql/*.sql`) and
     // db-push.sh (`[0-9][0-9][0-9]_*.sql`) apply these in filename order. A file

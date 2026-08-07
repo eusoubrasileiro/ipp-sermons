@@ -17,7 +17,7 @@
 #   verify    the abort criteria below       free
 #   canonicalize  series.csv rewrite         only when verify found a new series;
 #             refuses to retire a committed slug, so it is safe unattended
-#   commit    git add data/, commit, push    the reviewer runs on push
+#   commit    commit data/ and push          the reviewer runs on push
 #   index     index, index:facets            paid on new chunks only; the order
 #             is load-bearing, index-facets filters to ids already in the DB
 #   eval      pnpm eval                      blocks the release if recall drops
@@ -140,12 +140,20 @@ stage_commit() {
   local added
   added=$(git status --porcelain data/transcripts/ | grep -c '^??' || true)
 
-  git add data/
+  # --only, rather than `git add data/` and then commit: a failing hook left the
+  # corpus staged, and the next commit anyone made swept all of it in -- without
+  # the Ratified-by trailer, under a message about something else.
+  #
   # The trailer is its own final paragraph. git only parses trailers from a last
   # block of trailer-shaped lines; appended to prose it is written and invisible.
-  git commit -q \
+  # Wrapped by hand: commitlint caps a body line at 100 characters, and git
+  # never re-wraps a -m. An over-long line here means the stage cannot commit
+  # at all, which is a failure at the end of a run that took days.
+  git commit -q --only data/ \
     -m "feat(data): +$added sermons from the SoundCloud archive" \
-    -m "Transcribed offline by tools/corpus-update, then classified by the facet passes. Derived ground truth, regenerated and committed by scripts/corpus-update.sh." \
+    -m "Transcribed offline by tools/corpus-update, then classified by the facet
+passes. Derived ground truth, regenerated and committed by
+scripts/corpus-update.sh." \
     -m "Ratified-by: André <eusoubrasileiro@gmail.com>"
 
   say "push  (typecheck, lint, coverage, quality gate, reviewer)"
