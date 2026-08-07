@@ -1,3 +1,4 @@
+import { Card } from "./Card.tsx";
 import { AlertIcon, EmptyIcon } from "./Icons.tsx";
 
 /** Loading, empty, error and first-visit states. Every one of them is designed, none is blank. */
@@ -7,7 +8,7 @@ export function ResultsSkeleton() {
   return (
     <div className="space-y-3" aria-hidden="true">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+        <Card key={i}>
           <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
           <div className="mt-2 h-4 w-1/2 animate-pulse rounded bg-muted" />
           <div className="mt-4 space-y-2">
@@ -19,7 +20,7 @@ export function ResultsSkeleton() {
             <div className="h-11 w-36 animate-pulse rounded-md bg-muted" />
             <div className="h-11 w-36 animate-pulse rounded-md bg-muted" />
           </div>
-        </div>
+        </Card>
       ))}
     </div>
   );
@@ -38,7 +39,7 @@ export function EmptyState({
   acao?: { label: string; onClick: () => void } | undefined;
 }) {
   return (
-    <div className="rounded-lg border border-dashed border-border bg-card/50 p-6 text-center">
+    <Card variant="dashed" className="text-center">
       <EmptyIcon className="mx-auto h-8 w-8 text-muted-foreground" />
       <p className="mt-3 font-medium">Nenhum sermão encontrado para “{query}”.</p>
       <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
@@ -55,7 +56,7 @@ export function EmptyState({
           {acao.label}
         </button>
       ) : null}
-    </div>
+    </Card>
   );
 }
 
@@ -80,12 +81,12 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
 
 export function IntroState() {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <Card>
       <p className="text-[0.95rem] leading-relaxed text-card-foreground">
         A busca lê a transcrição de <strong>todos os sermões</strong> pregados na Igreja
         Presbiteriana Peregrinos. Escreva o que você lembra — um tema, uma passagem, uma frase — e
         nós encontramos o trecho e o link para ouvir.
       </p>
-    </div>
+    </Card>
   );
 }

@@ -82,7 +82,7 @@ export function SearchPage() {
           : ""}
       </p>
 
-      <main className="mt-4">
+      <div className="mt-4">
         {listando ? <BrowseResults titulo="Sermões filtrados" query={filterQuery} /> : null}
 
         {!listando && status === "idle" && <IntroState />}
@@ -110,7 +110,7 @@ export function SearchPage() {
             </div>
           </>
         )}
-      </main>
+      </div>
 
       <SuggestionBox />
     </>

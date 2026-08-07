@@ -13,23 +13,6 @@
 
 const SOUNDCLOUD_CHANNEL = "ipperegrinos";
 
-/**
- * WORKAROUND -- Spotify links are suppressed for sermons preached before this
- * date, ratified by the product owner 2026-08-04.
- *
- * Roughly a third of the episode ids no longer resolve, and every dead one is
- * from 2019-2021 (sampled 40 ids through Spotify's oEmbed endpoint: 27 alive,
- * 13 dead, all pre-2022). The ids match what Spotify's own API returned when
- * the corpus was scraped and match an independent 2025 scrape, so this is not
- * an app bug and not a corrupt column -- the episodes were retired upstream,
- * most likely when the podcast changed hosts. SoundCloud covers 100% of the
- * corpus, so nothing becomes unreachable.
- *
- * Delete this constant and the guard in `spotifyUrl` if the old episode ids are
- * ever re-scraped.
- */
-export const SPOTIFY_LINKS_ALIVE_FROM = "2022-01-01";
-
 const SOUNDCLOUD_BASE = `https://soundcloud.com/${SOUNDCLOUD_CHANNEL}`;
 const SPOTIFY_BASE = "https://open.spotify.com/episode";
 
@@ -50,16 +33,18 @@ export function soundcloudUrl(suffix: string | null | undefined): string | null 
 }
 
 /**
- * `date` is the sermon's preaching date as `YYYY-MM-DD`. ISO dates compare
- * correctly as strings, so no Date parsing (and no timezone) is involved.
- * A missing or malformed date is treated as too old to trust.
+ * `alive` is the sermon's `spotify_alive` column, derived from the podcast feed
+ * in `data/facets/spotify_episodes.csv` -- see `podcast-feed.ts` for why feed
+ * membership, and not the sermon's date, decides this.
+ *
+ * Unknown liveness suppresses the link. A sermon indexed before the check has
+ * run has no answer yet, and a dead play button is worse than none.
  */
 export function spotifyUrl(
   suffix: string | null | undefined,
-  date: string | null | undefined,
+  alive: boolean | null | undefined,
 ): string | null {
   const id = clean(suffix);
-  if (!id) return null;
-  if (!date || date < SPOTIFY_LINKS_ALIVE_FROM) return null;
+  if (!id || !alive) return null;
   return `${SPOTIFY_BASE}/${id}`;
 }

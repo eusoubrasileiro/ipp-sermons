@@ -3,6 +3,34 @@
 @tailwind utilities;
 
 /*
+ * Playfair Display, self-hosted. A high-contrast serif because the church's own
+ * identity is set in Didot; it carries the headings and the scripture excerpts
+ * and nothing else, so the UI keeps the system stack and its zero cost.
+ *
+ * Self-hosted rather than linked to Google: no third-party origin to reach
+ * before text paints, and nothing to reconsider if a CSP ever lands.
+ *
+ * Only the latin subset ships, and only the two faces actually used -- 700 for
+ * headings, 500 italic for scripture. Every accent Portuguese uses (a~ o~ c, e'
+ * i' o' u' a` a^) lives in U+00C0-U+00FF, so latin-ext would have been 34 KB
+ * that never rendered a glyph. 60 KB in total.
+ */
+@font-face {
+  font-family: "Playfair Display";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/playfair-700-normal-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Playfair Display";
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/playfair-500-italic-latin.woff2") format("woff2");
+}
+
+/*
  * Semantic tokens, light and dark. Dark follows the OS preference: the page has
  * no account and no settings screen, so a toggle would be state with nowhere to
  * live. The two brand colours are tokens too -- SoundCloud and Spotify need
@@ -28,11 +56,27 @@
     --border: 220 14% 87%;
     --input: 220 14% 80%;
     --ring: 220 60% 40%;
-    --soundcloud: 22 92% 48%;
+    /* Darkened from the brand's 48% lightness: white on it measured 3.46:1,
+       under the 4.5:1 the 14px button label needs. 5.19:1 here, still orange. */
+    --soundcloud: 22 92% 38%;
     --soundcloud-foreground: 0 0% 100%;
     --spotify: 141 73% 30%;
     --spotify-foreground: 0 0% 100%;
     --radius: 0.75rem;
+
+    /*
+     * The church's own palette, sampled from ipperegrinos.com. --primary was
+     * already its navy (#1E3A76) by coincidence, so only these are new.
+     *
+     * The gold is deliberately NOT the church's #AA9055: that measures 3.07:1
+     * on white and fails WCAG AA for body text, which is exactly where we want
+     * it (scripture excerpts). Darkened to 5.2:1 here. The literal brand gold
+     * survives as --gold-rule, for dividers and icons, where no text sits on it.
+     */
+    --secondary: 191 53% 31%;
+    --secondary-foreground: 0 0% 100%;
+    --gold: 39 33% 36%;
+    --gold-rule: 39 33% 50%;
   }
 
   @media (prefers-color-scheme: dark) {
@@ -59,6 +103,11 @@
       --soundcloud-foreground: 20 70% 8%;
       --spotify: 141 62% 46%;
       --spotify-foreground: 141 70% 6%;
+      /* Lightened to clear 4.5:1 on the dark background: 8.55:1. */
+      --secondary: 191 48% 62%;
+      --secondary-foreground: 191 60% 8%;
+      --gold: 39 45% 62%;
+      --gold-rule: 39 40% 46%;
     }
   }
 
@@ -69,6 +118,16 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /*
+   * Headings carry the church's serif; body copy stays on the system stack.
+   * Applied here rather than per-component so a new page inherits it.
+   */
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
   }
 
   /* One focus treatment everywhere, keyboard-only, visible on both schemes. */

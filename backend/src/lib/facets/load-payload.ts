@@ -74,3 +74,19 @@ export function topicPayload(
   assertMatched("sermon_topics.csv (sermon_id, topico_slug)", rows.length, payload.length);
   return payload;
 }
+
+/**
+ * Splits `spotify_episodes.csv` into the sermon ids whose episode still
+ * resolves and those whose episode has aged out of the 500-item podcast feed.
+ *
+ * A partition rather than a per-row update: the file covers every sermon that
+ * has an episode id at all, so two `updateMany`s settle it.
+ */
+export function spotifyPartition(rows: Record<string, string>[]): {
+  alive: string[];
+  dead: string[];
+} {
+  const ids = (alive: boolean) =>
+    rows.filter((r) => (trim(r.alive) === "true") === alive).map((r) => trim(r.sermon_id));
+  return { alive: ids(true), dead: ids(false) };
+}

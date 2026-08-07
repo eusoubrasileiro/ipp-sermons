@@ -2,6 +2,7 @@ import { useId, useState } from "react";
 import { formatDate, formatDuration, stripLeadingDate } from "../lib/format.ts";
 import type { SermonGroup } from "../lib/group.ts";
 import { highlight, snippet } from "../lib/highlight.ts";
+import { Card } from "./Card.tsx";
 import { PlayLinks } from "./PlayLinks.tsx";
 
 /**
@@ -16,7 +17,7 @@ function Excerpt({ text, query, clamp }: { text: string; query: string; clamp: b
   const shown = clamp ? snippet(text, query) : text;
   return (
     <p
-      className={`text-[0.95rem] leading-relaxed text-card-foreground/90 ${clamp ? "line-clamp-4" : ""}`}
+      className={`font-display text-[1.02rem] italic leading-relaxed text-card-foreground/90 ${clamp ? "line-clamp-4" : ""}`}
     >
       {highlight(shown, query).map((part, i) =>
         part.match ? (
@@ -43,8 +44,8 @@ export function SermonCard({ group, query }: { group: SermonGroup; query: string
   const title = stripLeadingDate(top.title);
 
   return (
-    <article className="rounded-lg border border-border bg-card p-4 shadow-sm transition hover:shadow-md sm:p-5">
-      <h2 className="text-lg font-semibold leading-snug text-card-foreground sm:text-xl">
+    <Card as="article">
+      <h2 className="font-display text-xl font-bold leading-snug text-card-foreground sm:text-2xl">
         {title}
       </h2>
 
@@ -60,7 +61,9 @@ export function SermonCard({ group, query }: { group: SermonGroup; query: string
         )}
       </p>
 
-      <blockquote id={passagesId} className="mt-3 border-l-2 border-accent pl-3">
+      {/* The church sets scripture in a gold italic serif; this echoes it, at a
+          gold dark enough to pass contrast on body-sized text. */}
+      <blockquote id={passagesId} className="mt-3 border-l-2 border-gold-rule pl-4">
         <Excerpt text={top.content} query={query} clamp={!expanded} />
 
         {expanded &&
@@ -86,6 +89,6 @@ export function SermonCard({ group, query }: { group: SermonGroup; query: string
       </button>
 
       <PlayLinks title={title} soundcloudUrl={top.soundcloudUrl} spotifyUrl={top.spotifyUrl} />
-    </article>
+    </Card>
   );
 }

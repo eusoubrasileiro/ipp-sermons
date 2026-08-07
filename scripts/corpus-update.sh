@@ -14,6 +14,9 @@
 #             because derive rewrites sermon_scriptures.csv from title rows only
 #             and would drop every cached LLM row if run on its own
 #   topics    label:topics                   paid per new sermon, resumable
+#   spotify   check:spotify                  free, one HTTP request, idempotent;
+#             expires on its own because the podcast feed's 500-item window
+#             rolls, so it is worth running without a corpus update behind it
 #   verify    the abort criteria below       free
 #   canonicalize  series.csv rewrite         only when verify found a new series;
 #             refuses to retire a committed slug, so it is safe unattended
@@ -103,6 +106,17 @@ stage_topics() {
   # is already committed. propose:taxonomy is not run here and has no root
   # passthrough -- it rewrites taxonomy.csv from scratch and orphans every row.
   pnpm label:topics
+}
+
+# Which Spotify episodes still resolve. Runs after every other data/facets/
+# writer and before the commit, so its file lands in the same reviewed diff.
+#
+# Also useful on its own -- `pnpm corpus:update spotify`. The podcast feed holds
+# 500 items and the window rolls, so this answer expires whether or not new
+# sermons were published, and stage_corpus exits early when data/ is unchanged.
+stage_spotify() {
+  say "check:spotify"
+  pnpm check:spotify
 }
 
 # The abort criteria that stand in for the human who is not watching.
@@ -312,13 +326,14 @@ stage_canonicalize() {
 NEW_SERIES=0
 
 case "$STAGE" in
-  corpus | facets | topics | verify | commit | index | eval | release | smoke | canonicalize)
+  corpus | facets | topics | spotify | verify | commit | index | eval | release | smoke | canonicalize)
     "stage_$STAGE"
     ;;
   all)
     stage_corpus
     stage_facets
     stage_topics
+    stage_spotify
     stage_verify
     # `[ ... ] && stage_...` would return 1 on the common path and set -e would
     # take the whole run down with it.

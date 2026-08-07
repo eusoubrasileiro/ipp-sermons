@@ -71,19 +71,20 @@ is the honest place for it. Do not "modernise" this into a framework call.
 
 | Path | Purpose |
 |------|---------|
-| `shared/src/` | Zod schemas + types shared by API and UI. Built to `dist/` first; everything else depends on it. |
-| `backend/src/lib/` | `search` (retrieval), `embeddings`, `rerank`, `llm` + `openrouter` (offline passes), `corpus` (CSV + transcript reader), `audio-urls` |
+| `shared/src/` | Zod schemas + types shared by API and UI, plus `audio-urls` (both sides build play links). Built to `dist/` first; everything else depends on it. |
+| `backend/src/lib/` | `search` (retrieval), `embeddings`, `rerank`, `llm` + `openrouter` (offline passes), `corpus` (CSV + transcript reader), `podcast-feed` (Spotify liveness) |
 | `backend/src/lib/facets/` | Facet derivation: `bible`, `parse-title`, `parse-scripture`, `cluster`, `series-taxonomy`, `extract-prompt`, `topics`, `batch`, `csv`, `slugify` |
 | `backend/src/lib/browse/` | `facets` (index tree), `counts` (adjusted for active filters), `list` (filtered listing), `query` (shared param parsing) |
 | `backend/src/scripts/` | `index-corpus`, `eval-golden`, and the facet pipeline below |
 | `backend/prisma/` | `schema.prisma` + `sql/` — **the sql files ARE the migrations** |
 | `frontend/src/` | Vite + React 19 + Tailwind SPA, Portuguese UI. Filter state lives in the URL (`lib/facet-params.ts`). |
 | `data/` | Corpus: `metadata.csv`, `transcripts/`, `preacher_names.txt` |
-| `data/facets/` | Derived ground truth, committed and reviewed: `bible_books`, `series`, `taxonomy`, `sermon_facets`, `sermon_scriptures`, `scripture_llm`, `sermon_topics` |
+| `data/facets/` | Derived ground truth, committed and reviewed: `bible_books`, `series`, `taxonomy`, `sermon_facets`, `sermon_scriptures`, `scripture_llm`, `sermon_topics`, `spotify_episodes` |
 | `tools/corpus-update/` | Python: discover → fetch → transcribe → clean. Runs offline, feeds `data/`. |
 | `deploy/` | Production compose for the Hostinger VPS |
 | `scripts/` | Dev harness (quality-gate, security-review, dispatch-worktree) + `corpus-update.sh`, which owns the order of a corpus update |
 | `archive/` | Retired GPU-era Python. Reference only — never revive. |
+| `docs/` | Work that is designed but deliberately not done yet, and why |
 
 ## Development
 
@@ -96,6 +97,7 @@ pnpm db:up                                   # Postgres+pgvector on :5439
 pnpm db:push                                 # schema + raw SQL — NOT `prisma db push`
 pnpm index                                   # index the corpus (--limit 5 to smoke it)
 pnpm index:facets                            # load data/facets/ — free, seconds, no API
+pnpm check:spotify                           # refresh which Spotify episodes still resolve
 
 pnpm dev                                     # backend + frontend
 pnpm test                                    # unit tests, no DB, no network
@@ -159,13 +161,20 @@ Each of these cost real debugging time. They are not obvious from the code.
    id and needs no show context. Both are rebuilt at read time in
    `backend/src/lib/audio-urls.ts`; nothing stores a full URL.
 
-9. **Spotify links are suppressed for pre-2022 sermons** (`SPOTIFY_LINKS_ALIVE_FROM`
-   in `audio-urls.ts`). Roughly a third of the episode ids no longer resolve and
-   every dead one is from 2019–2021 — the episodes were retired upstream, most
-   likely a podcast-host migration. The ids match both Spotify's API at scrape
-   time and an independent 2025 scrape, so this is a workaround for dead
-   upstream data, not an app bug or a corrupt column. SoundCloud covers 100% of
-   the corpus. Remove the constant and its guard if the old ids are re-scraped.
+9. **Spotify episodes die when they age out of the podcast feed, not when they
+   get old.** Every platform the church publishes to reads one URL — the
+   SoundCloud-generated RSS feed — and it is **capped at 500 items**. Whatever
+   falls out of that window gets delisted, so the episode 404s while its id
+   stays perfectly valid. The window *rolls*: ~50–100 new sermons a year push
+   the oldest off, so the answer expires on its own.
+
+   This replaced a `SPOTIFY_LINKS_ALIVE_FROM = "2022-01-01"` date cutoff that
+   was a proxy for feed membership, and a drifting one — it hid 52 episodes of
+   2021 that still worked, and would eventually have shown episodes already
+   dead. `pnpm check:spotify` records the truth per episode in
+   `data/facets/spotify_episodes.csv`; `spotify_alive` on `sermons` is what the
+   app reads. SoundCloud covers 100% of the corpus and is never suppressed.
+   Background for the church's IT contact: `docs/spotify-feed-window.md`.
 
 ## Critical files
 

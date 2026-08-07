@@ -92,6 +92,8 @@ export type BrowseSermon = {
   durationStr: string;
   scSuffixUrl: string | null;
   spSuffixUrl: string | null;
+  /** Whether the Spotify episode is still in the podcast feed, so still playable. */
+  spotifyAlive: boolean;
   serviceType: string | null;
   seriesPart: number | null;
   series: { slug: string; name: string } | null;

@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import { FacetNav } from "./components/FacetNav.tsx";
+import { Wordmark } from "./components/Logo.tsx";
 import { BiblePage } from "./pages/BiblePage.tsx";
 import { DatesPage } from "./pages/DatesPage.tsx";
 import { PreachersPage } from "./pages/PreachersPage.tsx";
@@ -20,9 +21,9 @@ export function App() {
     <div className="min-h-dvh">
       <div className="mx-auto max-w-3xl px-4 pb-12">
         <header className="pt-6 sm:pt-10">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Sermões IPP</h1>
-          <p className="mt-1 text-sm text-muted-foreground sm:text-base">
-            Busca nos sermões da Igreja Presbiteriana Peregrinos.
+          <Wordmark />
+          <p className="mt-3 text-sm text-muted-foreground sm:text-base">
+            Busque nos sermões por tema, passagem bíblica ou pregador.
           </p>
         </header>
 

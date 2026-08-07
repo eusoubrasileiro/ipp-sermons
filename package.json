@@ -34,6 +34,7 @@
     "label:topics": "pnpm --filter @ipp/backend label:topics",
     "canonicalize:series": "pnpm --filter @ipp/backend canonicalize:series",
     "index:facets": "pnpm --filter @ipp/backend index:facets",
+    "check:spotify": "pnpm --filter @ipp/backend check:spotify",
     "verify:facets": "pnpm --filter @ipp/backend verify:facets",
     "corpus:update": "bash scripts/corpus-update.sh",
     "prepare": "husky",

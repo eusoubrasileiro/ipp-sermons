@@ -10,7 +10,7 @@ import type { Reranker } from "../src/lib/rerank.ts";
  * without a database or any network call.
  */
 
-const chunkRow = (i: number, date = "2020-05-03") => ({
+const chunkRow = (i: number, date = "2020-05-03", spotifyAlive = true) => ({
   id: `c${i}`,
   sermon_id: `s${i}`,
   chunk_index: i,
@@ -22,6 +22,7 @@ const chunkRow = (i: number, date = "2020-05-03") => ({
   duration_str: "45:49",
   sc_suffix_url: `sermao-${i}`,
   sp_suffix_url: `spid${i}`,
+  spotify_alive: spotifyAlive,
 });
 
 const stubEmbeddings = (): EmbeddingsClient => ({
@@ -86,10 +87,11 @@ describe("POST /api/search", () => {
     expect(body.reranked).toBe(false);
   });
 
-  it("withholds the Spotify link for pre-2022 sermons but keeps SoundCloud", async () => {
-    // Those episodes were retired upstream; see SPOTIFY_LINKS_ALIVE_FROM.
+  it("withholds the Spotify link once an episode ages out of the feed", async () => {
+    // The podcast feed holds 500 items; aggregators delist what falls off it,
+    // so the episode 404s while its id stays valid. SoundCloud is unaffected.
     const app = createApp({
-      prisma: stubPrisma([chunkRow(0, "2021-12-31")]),
+      prisma: stubPrisma([chunkRow(0, "2021-12-31", false)]),
       embeddings: stubEmbeddings(),
     });
     const body = await readSearch(await post(app, "/api/search", { query: "graça" }));

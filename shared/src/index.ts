@@ -96,6 +96,14 @@ export const SuggestionRequestSchema = z.object({
 });
 export type SuggestionRequest = z.infer<typeof SuggestionRequestSchema>;
 
+/**
+ * Play-link builders. Shared rather than backend-only because the browse path
+ * ships raw suffix columns to the client and rebuilds the URLs there — when
+ * this lived in the backend the frontend hand-copied both the SoundCloud
+ * channel and the Spotify suppression rule, and the two drifted apart.
+ */
+export { soundcloudUrl, spotifyUrl } from "./audio-urls.js";
+
 export const HealthResponseSchema = z.object({
   status: z.literal("ok"),
   sermons: z.number().int(),

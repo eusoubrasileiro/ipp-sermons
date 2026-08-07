@@ -67,6 +67,13 @@ ALTER TABLE sermons ADD COLUMN IF NOT EXISTS series_slug   text;
 ALTER TABLE sermons ADD COLUMN IF NOT EXISTS series_part   int;
 ALTER TABLE sermons ADD COLUMN IF NOT EXISTS display_title text;
 
+-- Whether the Spotify episode still resolves. The church's podcast feed is
+-- served by SoundCloud and capped at 500 items; every aggregator delists what
+-- falls out of that window, so old episodes 404 while their ids stay valid.
+-- Derived in data/facets/spotify_episodes.csv. Defaults true so a sermon
+-- indexed before the check has run keeps its link rather than losing it.
+ALTER TABLE sermons ADD COLUMN IF NOT EXISTS spotify_alive boolean NOT NULL DEFAULT true;
+
 DO $$
 BEGIN
   ALTER TABLE sermons

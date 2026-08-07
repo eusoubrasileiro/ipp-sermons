@@ -64,6 +64,11 @@ model Sermon {
   /// Title with the leading date and event prefix stripped, for display.
   displayTitle String? @map("display_title")
 
+  /// Whether `spSuffixUrl` still resolves. The podcast feed is capped at 500
+  /// items, so aggregators delist sermons that age out of it — the id stays
+  /// valid while the episode 404s. Derived from the feed, not from the date.
+  spotifyAlive Boolean @default(true) @map("spotify_alive")
+
   series     Series?            @relation(fields: [seriesSlug], references: [slug], onDelete: SetNull)
   chunks     SermonChunk[]
   scriptures SermonScripture[]

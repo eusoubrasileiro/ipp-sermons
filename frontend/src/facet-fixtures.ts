@@ -95,6 +95,7 @@ export const SERMON = {
   durationStr: "48:25",
   scSuffixUrl: "casamento",
   spSuffixUrl: "abc",
+  spotifyAlive: true,
   serviceType: "culto",
   seriesPart: null,
   series: null,

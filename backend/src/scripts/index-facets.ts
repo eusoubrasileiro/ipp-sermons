@@ -2,8 +2,9 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import pkg from "@prisma/client";
 import { parseCsv } from "../lib/corpus.ts";
-import { int } from "../lib/facets/csv.ts";
-import { scripturePayload, topicPayload } from "../lib/facets/load-payload.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
+import { assertMatched, int } from "../lib/facets/csv.ts";
+import { scripturePayload, spotifyPartition, topicPayload } from "../lib/facets/load-payload.ts";
 import { buildVariantIndex, resolveSeries } from "../lib/facets/variants.ts";
 
 /**
@@ -22,8 +23,6 @@ import { buildVariantIndex, resolveSeries } from "../lib/facets/variants.ts";
  * run cannot empty the site.
  */
 const { PrismaClient } = pkg;
-
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
 
 const facetsFile = (name: string) => join(DATA_DIR, "facets", name);
 const readFacets = async (name: string) => parseCsv(await readFile(facetsFile(name), "utf8"));
@@ -139,6 +138,17 @@ async function loadSermonFacets(): Promise<{ updated: number; missing: string[] 
   return { updated, missing: [...new Set(missing)] };
 }
 
+/** Sermons absent from the file keep the column's `true` default: no episode, so the flag is moot. */
+async function loadSpotifyLiveness(): Promise<{ alive: number; dead: number }> {
+  const ids = spotifyPartition(await readFacets("spotify_episodes.csv"));
+  const set = async (list: string[], spotifyAlive: boolean) =>
+    (await prisma.sermon.updateMany({ where: { id: { in: list } }, data: { spotifyAlive } })).count;
+
+  const counts = { alive: await set(ids.alive, true), dead: await set(ids.dead, false) };
+  assertMatched("a sermon id", ids.alive.length + ids.dead.length, counts.alive + counts.dead);
+  return counts;
+}
+
 async function loadScriptures(): Promise<{ rows: number; skipped: number }> {
   const rows = await readFacets("sermon_scriptures.csv");
   const sermons = new Set(
@@ -194,6 +204,7 @@ async function main(): Promise<void> {
   const { updated, missing } = await loadSermonFacets();
   const scriptures = await loadScriptures();
   const sermonTopics = await loadSermonTopics();
+  const spotify = await loadSpotifyLiveness();
 
   console.log(`  bible_books        ${books}`);
   console.log(`  series             ${series}`);
@@ -205,6 +216,7 @@ async function main(): Promise<void> {
     `  sermon_scriptures  ${scriptures.rows}${scriptures.skipped ? `  (${scriptures.skipped} skipped: unknown sermon or book)` : ""}`,
   );
   console.log(`  sermon_topics      ${sermonTopics}`);
+  console.log(`  spotify episodes   ${spotify.alive} alive, ${spotify.dead} aged out of the feed`);
 
   if (missing.length > 0) {
     console.log(

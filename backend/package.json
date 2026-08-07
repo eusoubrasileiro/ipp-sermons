@@ -21,6 +21,7 @@
     "label:topics": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/label-topics.ts",
     "canonicalize:series": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/canonicalize-series.ts",
     "index:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/index-facets.ts",
+    "check:spotify": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/check-spotify.ts",
     "verify:facets": "node --experimental-strip-types --env-file-if-exists=../.env src/scripts/verify-facets.ts"
   },
   "dependencies": {

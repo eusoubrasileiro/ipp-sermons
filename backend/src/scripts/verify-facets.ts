@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadSermons, parseCsv } from "../lib/corpus.ts";
+import { DATA_DIR } from "../lib/data-dir.ts";
 import { loadBibleBooks } from "../lib/facets/bible.ts";
 import { slugify } from "../lib/facets/slugify.ts";
 import { type Problem, verdict } from "../lib/facets/verdict.ts";
@@ -23,7 +24,6 @@ import { type Problem, verdict } from "../lib/facets/verdict.ts";
  * exit code -- 0 clean, 1 blocked, 2 loadable but worth a look -- so a caller
  * can branch on it without grepping Portuguese out of stdout.
  */
-const DATA_DIR = process.env.CORPUS_DIR ?? join(import.meta.dirname, "../../../data");
 
 const read = async (name: string) => parseCsv(await readFile(join(DATA_DIR, name), "utf8"));
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { scripturePayload, topicPayload } from "../../src/lib/facets/load-payload.ts";
+import {
+  scripturePayload,
+  spotifyPartition,
+  topicPayload,
+} from "../../src/lib/facets/load-payload.ts";
 
 /**
  * The rows a facet load is about to write, computed before anything is deleted.
@@ -107,5 +111,36 @@ describe("topicPayload", () => {
     expect(() => topicPayload([topicRow({ topico_slug: "inventado" })], SERMONS, TOPICS)).toThrow(
       /none matched/,
     );
+  });
+});
+
+describe("spotifyPartition", () => {
+  const row = (id: string, alive: string) => ({ sermon_id: id, spotify_id: `sp${id}`, alive });
+
+  it("splits the file into live and aged-out sermon ids", () => {
+    const { alive, dead } = spotifyPartition([
+      row("1", "true"),
+      row("2", "false"),
+      row("3", "true"),
+    ]);
+    expect(alive).toEqual(["1", "3"]);
+    expect(dead).toEqual(["2"]);
+  });
+
+  it("treats anything that is not the literal true as dead", () => {
+    // A blank or malformed cell must not read as playable: a dead play button
+    // is worse than none.
+    const { alive, dead } = spotifyPartition([row("1", ""), row("2", "TRUE"), row("3", "sim")]);
+    expect(alive).toEqual([]);
+    expect(dead).toEqual(["1", "2", "3"]);
+  });
+
+  it("tolerates surrounding whitespace in either column", () => {
+    const { alive } = spotifyPartition([{ sermon_id: " 7 ", spotify_id: "x", alive: " true " }]);
+    expect(alive).toEqual(["7"]);
+  });
+
+  it("returns two empty lists for an empty file", () => {
+    expect(spotifyPartition([])).toEqual({ alive: [], dead: [] });
   });
 });

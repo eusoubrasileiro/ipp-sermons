@@ -1,4 +1,4 @@
-import type { SearchFilters, SearchResult } from "@ipp/shared";
+import { type SearchFilters, type SearchResult, soundcloudUrl, spotifyUrl } from "@ipp/shared";
 import pkg, { type PrismaClient } from "@prisma/client";
 
 // @prisma/client is CommonJS: `import { Prisma }` resolves under the dev
@@ -6,7 +6,6 @@ import pkg, { type PrismaClient } from "@prisma/client";
 // misses it. Destructure from the default export instead.
 const { Prisma } = pkg;
 
-import { soundcloudUrl, spotifyUrl } from "./audio-urls.ts";
 import { EMBEDDING_DIMS, type EmbeddingsClient, toVectorLiteral } from "./embeddings.ts";
 import type { Reranker } from "./rerank.ts";
 
@@ -30,6 +29,7 @@ type HybridRow = {
   duration_str: string;
   sc_suffix_url: string | null;
   sp_suffix_url: string | null;
+  spotify_alive: boolean | null;
 };
 
 /**
@@ -94,7 +94,7 @@ function toSearchResult(row: HybridRow, score: number): SearchResult {
     date,
     durationStr: row.duration_str,
     soundcloudUrl: soundcloudUrl(row.sc_suffix_url),
-    spotifyUrl: spotifyUrl(row.sp_suffix_url, date),
+    spotifyUrl: spotifyUrl(row.sp_suffix_url, row.spotify_alive),
     content: row.content,
     score,
     chunkIndex: row.chunk_index,
@@ -121,7 +121,8 @@ export async function search(
 
   const rows = await deps.prisma.$queryRaw<HybridRow[]>`
     SELECT h.id, h.sermon_id, h.chunk_index, h.content, h.score,
-           s.title, s.artist, s.date, s.duration_str, s.sc_suffix_url, s.sp_suffix_url
+           s.title, s.artist, s.date, s.duration_str, s.sc_suffix_url, s.sp_suffix_url,
+           s.spotify_alive
     FROM hybrid_search(
            ${query},
            ${Prisma.raw(`'${toVectorLiteral(queryVector)}'::halfvec(${EMBEDDING_DIMS})`)},

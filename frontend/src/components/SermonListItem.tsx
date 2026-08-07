@@ -1,3 +1,4 @@
+import { soundcloudUrl, spotifyUrl } from "@ipp/shared";
 import type { BrowseSermon } from "../api.ts";
 import { formatDate, formatDuration, stripLeadingDate } from "../lib/format.ts";
 import { PlayLinks } from "./PlayLinks.tsx";
@@ -46,14 +47,8 @@ export function SermonListItem({ sermon }: { sermon: BrowseSermon }) {
       <div className="mt-2">
         <PlayLinks
           title={title}
-          soundcloudUrl={
-            sermon.scSuffixUrl ? `https://soundcloud.com/ipperegrinos/${sermon.scSuffixUrl}` : null
-          }
-          spotifyUrl={
-            sermon.spSuffixUrl && sermon.date >= "2022-01-01"
-              ? `https://open.spotify.com/episode/${sermon.spSuffixUrl}`
-              : null
-          }
+          soundcloudUrl={soundcloudUrl(sermon.scSuffixUrl)}
+          spotifyUrl={spotifyUrl(sermon.spSuffixUrl, sermon.spotifyAlive)}
         />
       </div>
     </article>

@@ -12,6 +12,7 @@ const base = {
   durationStr: "0:48:25",
   scSuffixUrl: "casamento",
   spSuffixUrl: "abc",
+  spotifyAlive: true,
   serviceType: "culto",
   seriesPart: null as number | null,
   series: null as { slug: string; name: string } | null,
@@ -40,11 +41,20 @@ describe("SermonListItem", () => {
     expect(screen.getByRole("heading", { name: /^Efésios 5.22-33/ })).toBeVisible();
   });
 
-  it("suppresses the Spotify link for a pre-2022 sermon", () => {
-    // Roughly a third of those episode ids no longer resolve upstream.
-    render(<SermonListItem sermon={{ ...base, date: "2021-05-02T00:00:00.000Z" }} />);
+  it("suppresses the Spotify link once the episode has left the podcast feed", () => {
+    // The browse path used to hand-copy the backend's date cutoff; it now
+    // reads the same derived flag the search path does.
+    render(<SermonListItem sermon={{ ...base, spotifyAlive: false }} />);
     expect(screen.getByRole("link", { name: /SoundCloud/ })).toBeVisible();
     expect(screen.queryByRole("link", { name: /Spotify/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Spotify link for an old sermon whose episode is still live", () => {
+    // The old date rule hid this; feed membership, not age, decides.
+    render(
+      <SermonListItem sermon={{ ...base, date: "2021-05-02T00:00:00.000Z", spotifyAlive: true }} />,
+    );
+    expect(screen.getByRole("link", { name: /Spotify/ })).toBeVisible();
   });
 
   it("says so when a sermon has no audio at all", () => {
