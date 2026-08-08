@@ -35,13 +35,46 @@ the last word on them: `pnpm verify:corpus` loads the result through the real
 |---|---|---|
 | `discover` | Flat-lists the SoundCloud channel, diffs track ids against `metadata.csv` | recomputed each run |
 | `fetch` | Downloads audio + `.info.json` per track | skipping ids that already have an audio file |
-| `transcribe` | ffmpeg pre-filter, then WhisperX `large-v3` in Portuguese on the GPU | skipping stems that already have a raw transcript |
+| `transcribe` | ffmpeg pre-filter, then WhisperX `large-v3` in Portuguese on the GPU | skipping stems that already have a raw transcript, and stems handed to a peer |
 | `postprocess` | spaCy/LanguageTool cleaning, metrics, score; writes the corpus `.txt` | skipping ids already in `rows.jsonl` |
 | `append` | Appends new rows to `metadata.csv` | skipping ids already in the CSV |
 
 Run one on its own with `run.sh <stage>`. `run.sh` stops at `append`: the order
 of everything from `data/` inward lives in `scripts/corpus-update.sh`, and
 stating it twice is how it came to be stated wrongly here.
+
+## A second machine
+
+Transcription is the long pole, and the only stage that parallelises across
+boxes. `peer.sh` lends one:
+
+```bash
+tools/corpus-update/peer.sh dispatch predator      # hand it the back half, start it
+tools/corpus-update/peer.sh status   predator
+tools/corpus-update/peer.sh collect  predator      # transcripts home, assignment released
+```
+
+Audio goes out, `raw/*.txt` and `alignment/*.gz` come back, and nothing else
+moves. `discover`, `fetch`, `postprocess` and `append` stay on the box that owns
+`data/`, for the reason the section above gives: those numbers have to keep
+coming from one spaCy/LanguageTool install.
+
+What keeps the two boxes off each other's work is
+`$IPP_WORK_DIR/assigned/<host>.txt`, written by `dispatch` and read by every
+later `transcribe`. Splitting positionally instead — "you take the second half"
+— quietly breaks: the backlog shrinks from the head as work completes, so the
+second half slides backwards onto sermons the peer took hours ago, and both
+boxes spend an hour of GPU on the same sermon. `collect` releases the
+assignment, and only once the peer is actually idle.
+
+A peer needs the repo, `ffmpeg`, any `python3`, and the ml-tools venv that
+`whisperx_worker.py` runs under. It does **not** need the pipeline venv, yt-dlp,
+spaCy or a copy of `data/`. Set `IPP_PEER_WORK_DIR` / `IPP_PEER_REPO` if its
+layout differs from the defaults; a laptop has no `/mnt/Data`.
+
+Being a laptop, it also has to not fall asleep mid-run: mask the sleep targets,
+set `HandleLidSwitch=ignore`, and `loginctl enable-linger` so the run survives a
+desktop logout.
 
 ## Where things live
 
@@ -97,6 +130,24 @@ is public and must be rotated; do not reuse it.
 **SoundCloud throttling.** Fetch runs 2 tracks at a time with 4 concurrent
 fragments. Higher and SoundCloud starts answering 403 to the fragment manifests
 part-way through the backlog.
+
+**Compute type.** The corpus was transcribed at `float16`, and any GPU that
+offers it keeps using it. CTranslate2 does not offer `float16` below compute
+capability 7.0 — a GTX 1060 is 6.1 — and does not refuse either: it substitutes
+`float32`, which for `large-v3` is 6.2 GB of weights on a 6 GB board, so the run
+dies of an OOM hours in with nothing in the log connecting the two.
+`whisperx_worker.py` therefore chooses explicitly — `float16` where the card has
+it, `int8_float32` where it does not — and raises on a `--compute-type` the card
+cannot honour. The run prints which type and which card produced its
+transcripts, once, because with two machines that is the only record of it.
+
+The fallback is corpus-comparable, measured rather than assumed. One 53-minute
+sermon, GTX 1060 `int8_float32` against GTX 1660 SUPER `float16`: alignment
+score 85.9 vs 85.8, identical coverage, 0.57% of words different — nearly all of
+them spellings of one Hebrew proper noun (`Jeoás` / `Jehoás` / `Geoás`) that both
+boxes already spell inconsistently *within a single transcript*. Speed was 24
+min per audio-hour against 22: Pascal has int8 acceleration, so the older card
+is not the handicap it looks like.
 
 **Truncated transcripts.** WhisperX sometimes returns having transcribed only
 the first few minutes of a sermon, because the silero VAD decides the rest is

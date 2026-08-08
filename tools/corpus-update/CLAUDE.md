@@ -9,6 +9,12 @@ modes, and is not repeated here.
   the venv carries spaCy-pt, LanguageTool and the NVIDIA libraries CTranslate2
   dlopens by soname.
 
+  The one exception is a **peer** running `transcribe.py` alone (`peer.sh`):
+  that stage needs only the standard library, because the real work happens in
+  the ml-tools venv through `whisperx_worker.py`. Keep it that way — importing
+  `fetch` there would drag yt-dlp onto a machine that never downloads anything,
+  which is why `AUDIO_SUFFIXES` lives in `config.py`.
+
 - **This directory is outside the pnpm workspace** (`pnpm-workspace.yaml`) and
   outside Biome's `includes`. `pnpm lint`, `pnpm test` and `pnpm quality-gate`
   do not see it, and must not be widened to. The gates on this code are its own
