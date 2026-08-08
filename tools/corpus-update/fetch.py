@@ -48,7 +48,13 @@ MIN_DOWNLOADED = 0.95
 
 
 def measured_duration(path: pathlib.Path) -> float | None:
-    """Seconds of audio actually in the file, or None if ffprobe cannot say."""
+    """Seconds of audio in the file, or None when ffprobe cannot read it.
+
+    None means ffprobe ran and rejected the stream, which is a verdict: the
+    media is broken. A missing ffprobe raises FileNotFoundError and is left to
+    propagate, so a mis-provisioned machine fails loudly instead of deleting
+    the archive one track at a time.
+    """
     try:
         out = subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -72,11 +78,21 @@ def discard_if_short(path: pathlib.Path) -> bool:
     Deleting rather than flagging is deliberate -- it is what makes the next run
     fetch it again, since `already_have()` is the only record of what is done.
     """
-    declared = config.declared_duration(path.stem)
     measured = measured_duration(path)
-    if declared is None or measured is None:
-        # Nothing to compare against. Refusing here would reject every track
-        # whose sidecar carries no duration, which is not the failure we saw.
+    if measured is None:
+        # Not "nothing to compare against" -- ffprobe read the file and refused
+        # it. An incomplete HLS merge leaves an MP4 whose header is unusable
+        # (`trun track id unknown, no tfhd was found`), which fails every
+        # transcription attempt forever unless the file goes.
+        print(f"  UNREADABLE {path.name} -- discarding for re-download", flush=True)
+        path.unlink(missing_ok=True)
+        return False
+
+    declared = config.declared_duration(path.stem)
+    if declared is None:
+        # Here there genuinely is nothing to compare against. Refusing would
+        # reject every track whose sidecar carries no duration, which is not
+        # the failure that was seen.
         return True
 
     if measured / declared >= MIN_DOWNLOADED:

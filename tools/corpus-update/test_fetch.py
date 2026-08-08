@@ -67,10 +67,25 @@ def test_a_track_with_no_sidecar_is_kept(tmp_path, monkeypatch):
     assert path.exists()
 
 
-def test_a_track_ffprobe_cannot_read_is_kept(tmp_path, monkeypatch):
+def test_a_track_ffprobe_cannot_read_is_discarded(tmp_path, monkeypatch):
+    """Unreadable is a verdict, not an absence of one.
+
+    Four downloads reached the peer machine so broken that ffmpeg refused the
+    header -- `trun track id unknown, no tfhd was found` -- which is what an
+    incomplete HLS merge looks like. Keeping them means they fail transcription
+    on every run forever, because nothing else ever re-fetches them.
+
+    `measured_duration` returns None only when ffprobe RAN and could not read
+    the file; a missing ffprobe raises FileNotFoundError and is not caught.
+    """
     path = download(tmp_path, monkeypatch, "f [6]", declared=3600, measured=None)
-    assert fetch.discard_if_short(path) is True
-    assert path.exists()
+    assert fetch.discard_if_short(path) is False
+    assert not path.exists()
+
+
+def test_a_track_with_neither_a_sidecar_nor_a_readable_stream_is_discarded(tmp_path, monkeypatch):
+    path = download(tmp_path, monkeypatch, "g [7]", declared=None, measured=None)
+    assert fetch.discard_if_short(path) is False
 
 
 def test_the_sweep_makes_the_fix_retroactive(tmp_path, monkeypatch):
