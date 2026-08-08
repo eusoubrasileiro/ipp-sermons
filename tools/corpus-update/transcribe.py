@@ -14,6 +14,7 @@ Work is keyed by the yt-dlp audio stem (`Title [id]`), which is unique per track
 so an interrupted run resumes by simply skipping stems that already have output.
 """
 
+import argparse
 import gzip
 import json
 import os
@@ -24,7 +25,25 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 import config
-import fetch
+
+
+def shard(items: list, index: int, count: int) -> list:
+    """The `index`-th of `count` contiguous slices, 1-based.
+
+    Contiguous rather than round-robin, and 1-based on purpose. The backlog is
+    walked in sorted order, so a box that is already running is partway through
+    the head of it; giving shard 1 the head and the newcomer the tail means the
+    two never meet, and neither has to be restarted to join. Round-robin would
+    interleave them and send the joining box straight to sermons the incumbent
+    is about to reach.
+    """
+    if count < 1 or not 1 <= index <= count:
+        raise ValueError(f"shard {index}/{count} is not a slice of anything")
+    size, rest = divmod(len(items), count)
+    # The first `rest` slices take one extra, so no item is dropped when the
+    # backlog does not divide evenly.
+    start = (index - 1) * size + min(index - 1, rest)
+    return items[start : start + size + (1 if index <= rest else 0)]
 
 
 def cuda_env() -> dict[str, str]:
@@ -88,8 +107,27 @@ def coverage(gz: pathlib.Path, wav: pathlib.Path) -> float:
 # actually seen.
 MIN_COVERAGE = 0.90
 
+# Set after the first successful sermon reports which compute type and card
+# produced it, so the run says so exactly once.
+REPORTED_COMPUTE_TYPE = False
 
-def transcribe(wav: pathlib.Path) -> bool:
+
+def provenance(stdout: str) -> str | None:
+    """The worker's compute-type line, pulled out of its captured output.
+
+    The worker prints which compute type and which card produced the
+    transcript, but its stdout is a pipe this module reads only when something
+    failed. Since a peer machine may be transcribing at a different compute
+    type than the corpus baseline, that line is the only record of which path
+    a given transcript came from, and it has to reach the log on success too.
+    """
+    for line in stdout.splitlines():
+        if line.startswith("compute_type="):
+            return line.strip()
+    return None
+
+
+def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
     """Returns True when a complete transcript and its alignment landed.
 
     Judged by the output files rather than the exit code, and retried at a
@@ -109,6 +147,7 @@ def transcribe(wav: pathlib.Path) -> bool:
             str(config.RAW_DIR),
             "--batch-size",
             str(batch),
+            *(["--compute-type", compute_type] if compute_type else []),
         ]
         proc = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=cuda_env()
@@ -117,6 +156,12 @@ def transcribe(wav: pathlib.Path) -> bool:
         if txt.exists() and gz.exists() and txt.stat().st_size > 0:
             got = coverage(gz, wav)
             if got >= MIN_COVERAGE:
+                global REPORTED_COMPUTE_TYPE
+                # Once per run, not per sermon: it cannot change mid-run, and a
+                # line per sermon would bury the [n/m] progress it sits beside.
+                if not REPORTED_COMPUTE_TYPE and (line := provenance(proc.stdout)):
+                    print(f"  {line}", flush=True)
+                    REPORTED_COMPUTE_TYPE = True
                 # Keep the alignment beside the transcripts, where the score
                 # function inherited from doc_preproc.py expects to find it.
                 shutil.move(str(gz), str(config.ALIGNMENT_DIR / gz.name))
@@ -134,18 +179,64 @@ def transcribe(wav: pathlib.Path) -> bool:
     return False
 
 
+def assigned_elsewhere() -> set[str]:
+    """Audio file names another machine is already working on.
+
+    Empty, and cheap, when no peer has ever run -- the single-machine case has
+    to behave exactly as it did before peers existed.
+    """
+    if not config.ASSIGNED_DIR.is_dir():
+        return set()
+    return {
+        line.strip()
+        for handout in config.ASSIGNED_DIR.glob("*.txt")
+        for line in handout.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+
 def pending_audio() -> list[pathlib.Path]:
     done = {p.stem for p in config.RAW_DIR.glob("*.txt")}
+    taken = assigned_elsewhere()
     return sorted(
         p
         for p in config.AUDIO_DIR.iterdir()
-        if p.suffix.lower() in fetch.AUDIO_SUFFIXES and p.stem not in done
+        if p.suffix.lower() in config.AUDIO_SUFFIXES
+        and p.stem not in done
+        and p.name not in taken
     )
 
 
+def parse_shard(spec: str) -> tuple[int, int]:
+    try:
+        index, count = (int(part) for part in spec.split("/", 1))
+    except ValueError:
+        raise SystemExit(f"--shard wants i/n, got {spec!r}") from None
+    return index, count
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--shard",
+        default="1/1",
+        help="i/n -- take only the i-th of n contiguous slices of the backlog, "
+        "so a second machine can work the same corpus without collisions",
+    )
+    parser.add_argument(
+        "--compute-type",
+        default=os.environ.get("IPP_COMPUTE_TYPE") or None,
+        help="force a compute type; omit to let each GPU use the best it has",
+    )
+    args = parser.parse_args()
+    index, count = parse_shard(args.shard)
+
     config.ensure_dirs()
     todo = pending_audio()
+    if count > 1:
+        whole = len(todo)
+        todo = shard(todo, index, count)
+        print(f"shard {index}/{count}: {len(todo)} of {whole} pending", flush=True)
     print(f"to transcribe: {len(todo)}", flush=True)
     if not todo:
         return
@@ -165,7 +256,7 @@ def main() -> None:
 
             if wav is None:
                 continue
-            if transcribe(wav):
+            if transcribe(wav, args.compute_type):
                 ok += 1
             else:
                 print(f"  TRANSCRIPTION FAILED {audio.stem}", flush=True)

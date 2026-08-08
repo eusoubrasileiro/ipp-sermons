@@ -25,6 +25,12 @@ RAW_DIR = WORK_DIR / "raw"
 ALIGNMENT_DIR = WORK_DIR / "alignment"
 PENDING_JSON = WORK_DIR / "pending.json"
 ROWS_JSONL = WORK_DIR / "rows.jsonl"
+# One file per peer machine, listing the audio handed to it. Read by the
+# transcribe stage so that this box leaves those sermons alone; written and
+# removed by peer.sh. A positional split could not do this job: the backlog
+# shrinks from the head as work completes, so "the second half" slides
+# backwards over sermons a peer took hours ago.
+ASSIGNED_DIR = WORK_DIR / "assigned"
 
 SOUNDCLOUD_USER_URL = "https://soundcloud.com/ipperegrinos"
 SOUNDCLOUD_TRACKS_URL = f"{SOUNDCLOUD_USER_URL}/tracks"
@@ -33,6 +39,11 @@ SPOTIFY_SHOW_ID = "1DgxzkzYvNGLNv7UawbEUP"
 # yt-dlp's own template, kept because the `audio` column of every existing row
 # was written by it and metadata.py rediscovers files by globbing on the id.
 AUDIO_OUTPUT_TEMPLATE = "%(title)s [%(id)s].%(ext)s"
+
+# What counts as a downloaded sermon. Here rather than in fetch.py because the
+# transcribe stage needs it too, and a machine that only transcribes should not
+# have to install yt-dlp to import the constant.
+AUDIO_SUFFIXES = {".opus", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".webm", ".flac"}
 
 # The transcriber runs under the ml-tools venv, which already has WhisperX
 # large-v3 + torch/cu118 working against the box's GTX 1660 SUPER. Only the
@@ -76,5 +87,5 @@ MIN_SCORE = 50
 
 
 def ensure_dirs() -> None:
-    for d in (AUDIO_DIR, WAV_DIR, RAW_DIR, ALIGNMENT_DIR):
+    for d in (AUDIO_DIR, WAV_DIR, RAW_DIR, ALIGNMENT_DIR, ASSIGNED_DIR):
         d.mkdir(parents=True, exist_ok=True)

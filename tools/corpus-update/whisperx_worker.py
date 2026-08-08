@@ -25,6 +25,41 @@ import json
 import sys
 from pathlib import Path
 
+# What the corpus was made with, and what any card that can manage it keeps
+# using. Everything below is about the cards that cannot.
+BASELINE_COMPUTE_TYPE = "float16"
+
+# Second choice, for compute capability < 7.0. The weights are quantised either
+# way; float32 activations keep the arithmetic closer to the baseline than
+# plain int8 does. Measured on a GTX 1060 against the 1660 SUPER, one 53-minute
+# sermon: alignment score 85.9 vs 85.8, identical coverage, 0.57% of words
+# different -- and nearly all of those are spellings of one Hebrew proper noun
+# that both boxes already spell inconsistently within a single transcript.
+FALLBACK_COMPUTE_TYPE = "int8_float32"
+
+
+def pick_compute_type(supported: set[str], requested: str | None = None) -> str:
+    """Choose the compute type, or say why the requested one is impossible.
+
+    CTranslate2 does not offer float16 below compute capability 7.0, and it
+    does not refuse either -- it quietly substitutes float32, which for
+    large-v3 means 6.2 GB of weights on a 6 GB board and an out-of-memory
+    failure hours into a run, with nothing in the log connecting the two. So
+    the substitution is made here, deliberately and visibly, and an explicit
+    request that the device cannot honour is an error rather than a surprise.
+    """
+    if requested:
+        if requested not in supported:
+            raise ValueError(
+                f"this GPU cannot do {requested}; it supports {sorted(supported)}"
+            )
+        return requested
+    if BASELINE_COMPUTE_TYPE in supported:
+        return BASELINE_COMPUTE_TYPE
+    if FALLBACK_COMPUTE_TYPE in supported:
+        return FALLBACK_COMPUTE_TYPE
+    raise ValueError(f"no usable compute type; this GPU offers {sorted(supported)}")
+
 
 def allow_pyannote_checkpoint(torch) -> None:
     """Let the VAD checkpoint load under torch >= 2.6.
@@ -48,7 +83,8 @@ def allow_pyannote_checkpoint(torch) -> None:
     torch.load = load
 
 
-def transcribe(wav: Path, out_dir: Path, batch_size: int) -> None:
+def transcribe(wav: Path, out_dir: Path, batch_size: int, requested: str | None = None) -> None:
+    import ctranslate2
     import torch
 
     allow_pyannote_checkpoint(torch)
@@ -56,6 +92,10 @@ def transcribe(wav: Path, out_dir: Path, batch_size: int) -> None:
     import whisperx
 
     device = "cuda"
+    compute_type = pick_compute_type(ctranslate2.get_supported_compute_types(device), requested)
+    # Printed rather than assumed: this is the one line that tells a reader of
+    # the log which machine produced a given transcript and how.
+    print(f"compute_type={compute_type} on {torch.cuda.get_device_name(0)}", flush=True)
     audio = whisperx.load_audio(str(wav))
 
     # silero rather than the pyannote VAD the original used, for one reason:
@@ -65,7 +105,7 @@ def transcribe(wav: Path, out_dir: Path, batch_size: int) -> None:
     # back half of a sermon is not speech -- which transcribe.py detects by
     # length and retries, because the misfire is intermittent, not systematic.
     model = whisperx.load_model(
-        "large-v3", device, compute_type="float16", language="pt", vad_method="silero"
+        "large-v3", device, compute_type=compute_type, language="pt", vad_method="silero"
     )
     result = model.transcribe(audio, batch_size=batch_size)
     del model
@@ -98,10 +138,16 @@ if __name__ == "__main__":
     parser.add_argument("--wav", required=True)
     parser.add_argument("--out-dir", required=True)
     parser.add_argument("--batch-size", type=int, default=2)
+    parser.add_argument(
+        "--compute-type",
+        default=None,
+        help="force a compute type; omit to use float16 where the GPU has it "
+        "and int8_float32 where it does not",
+    )
     args = parser.parse_args()
 
     try:
-        transcribe(Path(args.wav), Path(args.out_dir), args.batch_size)
+        transcribe(Path(args.wav), Path(args.out_dir), args.batch_size, args.compute_type)
     except Exception as exc:
         print(f"Error transcribing {args.wav}: {exc}", file=sys.stderr)
         sys.exit(1)

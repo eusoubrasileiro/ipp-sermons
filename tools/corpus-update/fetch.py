@@ -18,7 +18,9 @@ import config
 WORKERS = int(os.environ.get("IPP_FETCH_WORKERS", "2"))
 
 
-AUDIO_SUFFIXES = {".opus", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".webm", ".flac"}
+# Lives in config so that transcribe.py can find audio without importing this
+# module, which would drag yt-dlp onto a machine that only ever transcribes.
+AUDIO_SUFFIXES = config.AUDIO_SUFFIXES
 
 
 def audio_path(track_id: str) -> "pathlib.Path | None":
