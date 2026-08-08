@@ -1,6 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { FacetNav } from "./components/FacetNav.tsx";
 import { Wordmark } from "./components/Logo.tsx";
+import { useRouteTitle } from "./lib/useDocumentTitle.ts";
 import { BiblePage } from "./pages/BiblePage.tsx";
 import { DatesPage } from "./pages/DatesPage.tsx";
 import { PreachersPage } from "./pages/PreachersPage.tsx";
@@ -18,6 +19,8 @@ import { TopicsPage } from "./pages/TopicsPage.tsx";
  * this small.
  */
 export function App() {
+  useRouteTitle();
+
   return (
     <div className="min-h-dvh">
       <div className="mx-auto max-w-3xl px-4 pb-12">

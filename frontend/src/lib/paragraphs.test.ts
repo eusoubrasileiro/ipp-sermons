@@ -1,78 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { CHUNK_STRIDE, paragraphAtWord, toParagraphs } from "./paragraphs.ts";
+import { CHUNK_STRIDE, paragraphAtWord } from "./paragraphs.ts";
 
 /**
- * The corpus arrives as one unbroken block — zero newline characters across all
- * 503 committed transcripts — so every paragraph the reader sees is invented
- * here. These tests pin the two things that must hold for that to be safe: no
- * word is ever lost, and the anchor still lands on the passage that matched.
+ * Anchoring is the browser's business alone: it exists to scroll the reader to
+ * the passage that answered their search. The splitting it counts against
+ * lives in `@ipp/shared`, tested there, because the server renders the same
+ * paragraphs into the page a crawler reads.
  */
 
 const sentence = (words: number, word = "palavra") => `${Array(words).fill(word).join(" ")}.`;
-
-function allWords(paragraphs: string[]): string[] {
-  return paragraphs.join(" ").split(/\s+/).filter(Boolean);
-}
-
-describe("toParagraphs", () => {
-  it("splits a wall of text on sentence boundaries", () => {
-    const got = toParagraphs("Primeira frase. Segunda frase! Terceira frase?", 2);
-    expect(got).toEqual(["Primeira frase.", "Segunda frase!", "Terceira frase?"]);
-  });
-
-  it("groups sentences up to the target length", () => {
-    const text = [sentence(30), sentence(30), sentence(30), sentence(30)].join(" ");
-    const got = toParagraphs(text, 100);
-
-    // 30+30+30 reaches 90, the fourth crosses 100 and closes the paragraph.
-    expect(got).toHaveLength(1);
-    expect(allWords(got)).toHaveLength(120);
-  });
-
-  it("never drops the tail", () => {
-    // The last sentences of a sermon are shorter than the target, so a
-    // close-only-on-target loop would silently stop rendering the ending.
-    const text = [sentence(120), sentence(5)].join(" ");
-    const got = toParagraphs(text, 100);
-
-    expect(got).toHaveLength(2);
-    expect(got[1]).toBe(sentence(5));
-  });
-
-  it("keeps every word of the transcript", () => {
-    const text = Array.from({ length: 40 }, (_, i) => sentence(18, `w${i}`)).join(" ");
-    expect(allWords(toParagraphs(text))).toEqual(text.split(/\s+/).filter(Boolean));
-  });
-
-  it("does not break on a decimal or a scripture reference", () => {
-    // "Eclesiastes 3.2b-3a" and "1.5-7" are everywhere in this corpus. A naive
-    // split on "." would cut them in half.
-    const got = toParagraphs("Lemos Eclesiastes 3.2 hoje. E também 2 Pedro 1.5-7 depois.", 1000);
-    expect(got).toEqual(["Lemos Eclesiastes 3.2 hoje. E também 2 Pedro 1.5-7 depois."]);
-  });
-
-  it("breaks before a sentence that does not start with a capital", () => {
-    // Portuguese sermons open sentences with "e", "mas" and numerals
-    // constantly; requiring a capital after the period would join them all.
-    expect(toParagraphs("Ele falou. e o povo ouviu.", 1)).toEqual([
-      "Ele falou.",
-      "e o povo ouviu.",
-    ]);
-  });
-
-  it("returns nothing for an empty transcript", () => {
-    expect(toParagraphs("")).toEqual([]);
-    expect(toParagraphs("   \n  ")).toEqual([]);
-  });
-
-  it("handles a transcript that ends mid-sentence", () => {
-    // Exactly what a truncated download used to produce, and what the reading
-    // page must still render rather than blank.
-    expect(toParagraphs("nós vamos ficar olhando argumentos para cá e para ")).toEqual([
-      "nós vamos ficar olhando argumentos para cá e para",
-    ]);
-  });
-});
 
 describe("paragraphAtWord", () => {
   const paragraphs = [sentence(100), sentence(100), sentence(100)];

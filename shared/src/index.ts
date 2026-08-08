@@ -121,6 +121,15 @@ export type SuggestionRequest = z.infer<typeof SuggestionRequestSchema>;
  */
 export { soundcloudUrl, spotifyUrl } from "./audio-urls.js";
 
+/**
+ * Presentation rules shared for the same reason: the server prerenders a
+ * sermon's heading, date and paragraphs into `index.html` so a crawler can read
+ * them, and the SPA renders them again on hydration. Both sides must write them
+ * identically or the page rewrites itself under the reader.
+ */
+export { formatDate, SITE_TITLE, sermonTitle, stripLeadingDate } from "./format.js";
+export { countWords, toParagraphs } from "./paragraphs.js";
+
 export const HealthResponseSchema = z.object({
   status: z.literal("ok"),
   sermons: z.number().int(),
