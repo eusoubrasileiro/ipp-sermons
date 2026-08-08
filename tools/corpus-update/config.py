@@ -6,6 +6,7 @@ and the score cutoff all have to match, or new rows stop being comparable to the
 455 already in `data/metadata.csv`.
 """
 
+import json
 import os
 import pathlib
 
@@ -44,6 +45,30 @@ AUDIO_OUTPUT_TEMPLATE = "%(title)s [%(id)s].%(ext)s"
 # transcribe stage needs it too, and a machine that only transcribes should not
 # have to install yt-dlp to import the constant.
 AUDIO_SUFFIXES = {".opus", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".webm", ".flac"}
+
+
+def info_json_for(stem: str) -> dict | None:
+    """yt-dlp's sidecar for a downloaded track, or None if it never landed.
+
+    Here for the same reason as AUDIO_SUFFIXES: fetch, transcribe and
+    postprocess all need it, and transcribe must not import fetch.
+
+    `duration` in this file is what SoundCloud says the sermon is, which makes
+    it the only trustworthy denominator in the pipeline. Measuring the audio on
+    disk instead is how a 1-minute download of a 64.7-minute class passed the
+    coverage guard at 100% and reached production.
+    """
+    path = AUDIO_DIR / f"{stem}.info.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def declared_duration(stem: str) -> float | None:
+    """Seconds of sermon according to SoundCloud, or None when unknowable."""
+    info = info_json_for(stem)
+    duration = float((info or {}).get("duration") or 0)
+    return duration if duration > 0 else None
 
 # The transcriber runs under the ml-tools venv, which already has WhisperX
 # large-v3 + torch/cu118 working against the box's GTX 1660 SUPER. Only the

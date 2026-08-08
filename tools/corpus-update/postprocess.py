@@ -111,11 +111,7 @@ def resolve_artist(info: dict, preachers: list[str], full_names: list[str]) -> s
     return None
 
 
-def info_json_for(stem: str) -> dict | None:
-    path = config.AUDIO_DIR / f"{stem}.info.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
+info_json_for = config.info_json_for
 
 
 def audio_file_for(stem: str) -> str | None:

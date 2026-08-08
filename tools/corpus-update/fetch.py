@@ -9,6 +9,7 @@ and stays in the work directory forever.
 import json
 import os
 import pathlib
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yt_dlp
@@ -40,6 +41,56 @@ def already_have(track_id: str) -> bool:
     return audio_path(track_id) is not None
 
 
+# How much of the sermon has to be in the file. SoundCloud's own duration and
+# the container's disagree by a fraction of a second on a healthy download; the
+# failures were 0.3% to 47%, so anything in between is noise.
+MIN_DOWNLOADED = 0.95
+
+
+def measured_duration(path: pathlib.Path) -> float | None:
+    """Seconds of audio actually in the file, or None if ffprobe cannot say."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=60, check=True,
+        )
+        return float(out.stdout.strip())
+    except (subprocess.SubprocessError, ValueError):
+        return None
+
+
+def discard_if_short(path: pathlib.Path) -> bool:
+    """True when the download is whole; deletes it and returns False when not.
+
+    SoundCloud serves HLS in ~300 fragments and 403s under load. Once
+    `fragment_retries` is spent yt-dlp finalises what it has: a short file that
+    plays, that `already_have()` accepts, and that every later stage treats as
+    the sermon. 46 of 151 downloads came back this way, nine of them reaching
+    production as transcripts covering 2-47% of the class.
+
+    Deleting rather than flagging is deliberate -- it is what makes the next run
+    fetch it again, since `already_have()` is the only record of what is done.
+    """
+    declared = config.declared_duration(path.stem)
+    measured = measured_duration(path)
+    if declared is None or measured is None:
+        # Nothing to compare against. Refusing here would reject every track
+        # whose sidecar carries no duration, which is not the failure we saw.
+        return True
+
+    if measured / declared >= MIN_DOWNLOADED:
+        return True
+
+    print(
+        f"  SHORT {path.name}: {measured / 60:.1f} of {declared / 60:.1f} min "
+        f"({measured / declared:.0%}) -- discarding for re-download",
+        flush=True,
+    )
+    path.unlink(missing_ok=True)
+    return False
+
+
 def fetch(track: dict) -> bool:
     opts = {
         "format": "bestaudio/best",
@@ -65,7 +116,8 @@ def fetch(track: dict) -> bool:
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.download([track["url"]])
-        return already_have(track["id"])
+        path = audio_path(track["id"])
+        return path is not None and discard_if_short(path)
     except Exception as exc:  # a private or deleted track should not stop the backlog
         print(f"  FAILED {track['id']} {track['title']!r}: {exc}", flush=True)
         return False

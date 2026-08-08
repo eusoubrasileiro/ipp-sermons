@@ -5,6 +5,9 @@ functions under test are pure for exactly that reason -- the GPU-dependent part
 is `ctranslate2.get_supported_compute_types`, whose answer is passed in.
 """
 
+import gzip
+import json
+
 import pytest
 
 import config
@@ -170,3 +173,70 @@ def test_output_without_a_provenance_line_yields_nothing():
     """Older workers, and any future one that stops printing it, must not crash
     a run that is otherwise fine."""
     assert transcribe.provenance("just the usual whisper chatter\n") is None
+
+
+# --- coverage ---------------------------------------------------------------
+#
+# The guard that let nine truncated sermons into production. It was measuring
+# the transcript against the WAV it was handed, which is circular: WhisperX
+# transcribes whatever audio exists, so a 1-minute download of a 64.7-minute
+# class reaches the end of its own file and scores 100%. The denominator has to
+# be what SoundCloud says the sermon lasts.
+
+
+def sermon(tmp_path, monkeypatch, stem: str, *, declared: float | None, last_end: float,
+           wav_seconds: float) -> tuple:
+    """A finished transcription: an alignment reaching `last_end`, a WAV of
+    `wav_seconds`, and optionally a sidecar declaring the sermon's real length."""
+    audio, raw = tmp_path / "audio", tmp_path / "raw"
+    audio.mkdir(exist_ok=True)
+    raw.mkdir(exist_ok=True)
+    monkeypatch.setattr(config, "AUDIO_DIR", audio)
+
+    if declared is not None:
+        (audio / f"{stem}.info.json").write_text(json.dumps({"duration": declared}))
+
+    gz = raw / f"{stem}.gz"
+    with gzip.open(gz, "wt", encoding="utf-8") as f:
+        json.dump({"segments": [{"end": last_end, "text": "x"}]}, f)
+
+    wav = tmp_path / f"{stem}.wav"
+    wav.write_bytes(b"\0" * (44 + int(wav_seconds * 16000 * 2)))
+    return gz, wav
+
+
+def test_a_whole_sermon_covers_its_declared_duration(tmp_path, monkeypatch):
+    gz, wav = sermon(tmp_path, monkeypatch, "a [1]", declared=3600, last_end=3580,
+                     wav_seconds=3600)
+    assert transcribe.coverage(gz, wav) >= transcribe.MIN_COVERAGE
+
+
+def test_a_truncated_download_no_longer_validates_against_itself(tmp_path, monkeypatch):
+    """The production bug, exactly: 1 minute downloaded of a 64.7-minute class.
+    Against the WAV this is 100%; against the sermon it is 1.5%."""
+    gz, wav = sermon(tmp_path, monkeypatch, "b [2]", declared=64.7 * 60, last_end=60,
+                     wav_seconds=60)
+    assert transcribe.coverage(gz, wav) < transcribe.MIN_COVERAGE
+
+
+def test_the_vad_losing_the_back_half_is_still_caught(tmp_path, monkeypatch):
+    """The failure the guard was written for: whole audio, partial transcript."""
+    gz, wav = sermon(tmp_path, monkeypatch, "c [3]", declared=3600, last_end=60,
+                     wav_seconds=3600)
+    assert transcribe.coverage(gz, wav) < transcribe.MIN_COVERAGE
+
+
+def test_it_falls_back_to_the_wav_when_there_is_no_sidecar(tmp_path, monkeypatch):
+    """A peer may be handed audio without one; refusing there would stall the
+    backlog over a file that is probably fine."""
+    gz, wav = sermon(tmp_path, monkeypatch, "d [4]", declared=None, last_end=3580,
+                     wav_seconds=3600)
+    assert transcribe.coverage(gz, wav) >= transcribe.MIN_COVERAGE
+
+
+def test_an_alignment_with_no_segments_covers_nothing(tmp_path, monkeypatch):
+    gz, wav = sermon(tmp_path, monkeypatch, "e [5]", declared=3600, last_end=0,
+                     wav_seconds=3600)
+    with gzip.open(gz, "wt", encoding="utf-8") as f:
+        json.dump({"segments": []}, f)
+    assert transcribe.coverage(gz, wav) == 0.0

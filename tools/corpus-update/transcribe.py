@@ -85,20 +85,31 @@ def to_wav(audio: pathlib.Path) -> pathlib.Path | None:
 
 
 def coverage(gz: pathlib.Path, wav: pathlib.Path) -> float:
-    """Fraction of the audio the transcript actually reaches.
+    """Fraction of the sermon the transcript actually reaches.
 
     WhisperX can come back having transcribed only the first few minutes -- the
     VAD drops the rest -- and because alignment then succeeds on those few
-    segments, transcreve.py writes a perfectly well-formed .txt and .gz and
+    segments, transcribe.py writes a perfectly well-formed .txt and .gz and
     exits 0. Nothing downstream would notice: a fifth of a sermon scores fine
     and indexes fine. Length is the only thing that gives it away.
+
+    The denominator is what SoundCloud says the sermon lasts, NOT the WAV. It
+    used to be the WAV's own byte length, which made this guard circular: hand
+    it a truncated download and WhisperX transcribes all of it, so
+    `segments[-1].end / duration` is 1.0 and a 1-minute file passes as a
+    complete 64.7-minute class. Nine did, and reached production.
+
+    Falls back to measuring the WAV only when there is no sidecar to ask -- a
+    peer transcribing handed-over audio may not have one, and refusing there
+    would stall the backlog over a file that is probably fine.
     """
     with gzip.open(gz, "rt", encoding="utf-8") as f:
         segments = json.load(f).get("segments", [])
     if not segments:
         return 0.0
+
     # 16 kHz, 16-bit, mono, minus the 44-byte RIFF header.
-    duration = (wav.stat().st_size - 44) / (16000 * 2)
+    duration = config.declared_duration(wav.stem) or (wav.stat().st_size - 44) / (16000 * 2)
     return segments[-1]["end"] / duration if duration > 0 else 0.0
 
 
