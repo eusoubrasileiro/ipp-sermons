@@ -240,3 +240,58 @@ def test_an_alignment_with_no_segments_covers_nothing(tmp_path, monkeypatch):
     with gzip.open(gz, "wt", encoding="utf-8") as f:
         json.dump({"segments": []}, f)
     assert transcribe.coverage(gz, wav) == 0.0
+
+
+# --- transcripts arriving from a peer ---------------------------------------
+#
+# `coverage` only ever ran inside `transcribe()`. A peer hands back finished
+# raw/alignment pairs through `peer.sh collect`, which touched neither -- and
+# the peer cannot check for itself, because `dispatch` ships audio without the
+# .info.json that says how long the sermon is. 27 truncated downloads came home
+# as well-formed transcripts that way.
+
+
+def collected(tmp_path, monkeypatch, *specs):
+    """A work dir holding raw/alignment pairs, as `collect` would leave it."""
+    for name in ("AUDIO_DIR", "RAW_DIR", "ALIGNMENT_DIR", "WAV_DIR"):
+        (tmp_path / name).mkdir(exist_ok=True)
+        monkeypatch.setattr(config, name, tmp_path / name)
+    for stem, declared, last_end in specs:
+        if declared is not None:
+            (tmp_path / "AUDIO_DIR" / f"{stem}.info.json").write_text(
+                json.dumps({"duration": declared})
+            )
+        with gzip.open(tmp_path / "ALIGNMENT_DIR" / f"{stem}.gz", "wt", encoding="utf-8") as f:
+            json.dump({"segments": [{"end": last_end, "text": "x"}]}, f)
+        (tmp_path / "RAW_DIR" / f"{stem}.txt").write_text("x")
+
+
+def test_a_peer_transcript_of_truncated_audio_is_discarded(tmp_path, monkeypatch):
+    collected(tmp_path, monkeypatch, ("a [1]", 3600, 3580), ("b [2]", 3600, 700))
+    assert transcribe.discard_incomplete() == ["b [2]"]
+    assert (config.RAW_DIR / "a [1].txt").exists()
+    assert not (config.RAW_DIR / "b [2].txt").exists()
+    assert not (config.ALIGNMENT_DIR / "b [2].gz").exists()
+
+
+def test_both_halves_go_so_the_sermon_is_pending_again(tmp_path, monkeypatch):
+    """`pending_audio()` reads RAW_DIR to decide what is left, so a transcript
+    kept aside would silently mark the sermon done."""
+    collected(tmp_path, monkeypatch, ("b [2]", 3600, 700))
+    (config.AUDIO_DIR / "b [2].m4a").touch()
+    transcribe.discard_incomplete()
+    assert [p.stem for p in transcribe.pending_audio()] == ["b [2]"]
+
+
+def test_an_alignment_with_no_sidecar_is_left_alone(tmp_path, monkeypatch):
+    """Nothing says how long the sermon is, and the .wav coverage would fall
+    back to was deleted when transcription finished."""
+    collected(tmp_path, monkeypatch, ("c [3]", None, 10))
+    assert transcribe.discard_incomplete() == []
+    assert (config.ALIGNMENT_DIR / "c [3].gz").exists()
+
+
+def test_it_can_be_narrowed_to_what_a_collect_just_brought_home(tmp_path, monkeypatch):
+    collected(tmp_path, monkeypatch, ("b [2]", 3600, 700), ("d [4]", 3600, 700))
+    assert transcribe.discard_incomplete(stems=["d [4]"]) == ["d [4]"]
+    assert (config.ALIGNMENT_DIR / "b [2].gz").exists()

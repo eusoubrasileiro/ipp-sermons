@@ -111,6 +111,17 @@ collect)
   # peer's copy of the same sermon should the two ever overlap.
   rsync -a --ignore-existing "$HOST:$PEER_WORK/raw/" "$WORK/raw/"
   rsync -a --ignore-existing "$HOST:$PEER_WORK/alignment/" "$WORK/alignment/"
+
+  # The peer cannot judge its own output: dispatch ships audio without the
+  # .info.json that says how long the sermon is, so `coverage` there falls back
+  # to measuring the .wav and a truncated download validates against itself.
+  # This is the one place every peer transcript passes through and the sidecars
+  # live, so the check belongs here. It once let a night of work come home as
+  # 27 well-formed transcripts of audio that had only partly downloaded.
+  "$PY" -c 'import transcribe
+for stem in transcribe.discard_incomplete():
+    print(f"  incomplete, discarded: {stem}")'
+
   echo "raw: $(ls "$WORK"/raw/*.txt 2>/dev/null | wc -l) transcripts here now"
 
   if peer_running; then

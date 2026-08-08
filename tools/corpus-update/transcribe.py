@@ -190,6 +190,40 @@ def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
     return False
 
 
+def discard_incomplete(stems: list[str] | None = None) -> list[str]:
+    """Deletes raw/alignment pairs that do not cover their sermon. Returns them.
+
+    `coverage()` only ever ran inside `transcribe()`, which is the local path.
+    Transcripts arriving from a peer through `peer.sh collect` bypassed it
+    entirely -- and the peer cannot check for itself, because `dispatch` ships
+    audio without the `.info.json` that says how long the sermon is.
+
+    That gap let a peer spend a night transcribing 27 truncated downloads and
+    hand back 27 well-formed, useless transcripts. Their coverage tracked the
+    fraction of audio that had downloaded almost exactly 1:1, so this is the
+    same test, applied where every transcript passes regardless of which
+    machine produced it.
+
+    Deleting rather than quarantining keeps one meaning for "a raw transcript
+    exists": `pending_audio()` reads that directory to decide what is left to
+    do, so a file kept aside would silently mark the sermon done.
+    """
+    removed = []
+    for gz in sorted(config.ALIGNMENT_DIR.glob("*.gz")):
+        if stems is not None and gz.stem not in stems:
+            continue
+        # No sidecar means no sermon length to judge against, and the .wav that
+        # `coverage` would fall back to was deleted once transcription finished.
+        if config.declared_duration(gz.stem) is None:
+            continue
+        if coverage(gz, config.WAV_DIR / f"{gz.stem}.wav") >= MIN_COVERAGE:
+            continue
+        gz.unlink(missing_ok=True)
+        (config.RAW_DIR / f"{gz.stem}.txt").unlink(missing_ok=True)
+        removed.append(gz.stem)
+    return removed
+
+
 def assigned_elsewhere() -> set[str]:
     """Audio file names another machine is already working on.
 
