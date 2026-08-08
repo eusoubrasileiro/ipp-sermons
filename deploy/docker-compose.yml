@@ -131,6 +131,11 @@ services:
     env_file: .env
     environment:
       PORT: 3000
+      # The reading page serves transcripts off disk, and data-dir.ts resolves
+      # its default relative to the module -- which is /app/dist/lib here, so
+      # "../../../data" lands on /data and every transcript 404s. The corpus is
+      # at /app/data (Dockerfile), same as the `index` one-shot already says.
+      CORPUS_DIR: /app/data
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=network_public"

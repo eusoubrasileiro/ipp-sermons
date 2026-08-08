@@ -40,6 +40,14 @@ model Sermon {
   scSuffixUrl String? @map("sc_suffix_url")
   spSuffixUrl String? @map("sp_suffix_url")
 
+  /// File name under data/transcripts/, so the reading page can serve the whole
+  /// sermon. The text itself is not stored here — 20 MB of it already ships in
+  /// the image and duplicating it would buy nothing.
+  ///
+  /// A column rather than a rule, because the file name cannot be derived from
+  /// the title: `txt` equals `name + ".txt"` in only 456 of 514 corpus rows.
+  transcriptFile String? @map("transcript_file")
+
   /// wav2vec forced-alignment quality (0-100). The corpus is filtered to > 50,
   /// the same cutoff the GPU pipeline used.
   score        Float

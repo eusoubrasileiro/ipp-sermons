@@ -90,6 +90,23 @@ export const SearchResponseSchema = z.object({
 });
 export type SearchResponse = z.infer<typeof SearchResponseSchema>;
 
+/**
+ * A whole sermon, for reading rather than searching.
+ *
+ * `text` is the transcript exactly as it sits in `data/transcripts/` — one
+ * unbroken block, because `clean.py` strips the newlines WhisperX wrote. The
+ * paragraphs the reader sees are synthesised in the browser; nothing here
+ * pretends the preacher paused where a paragraph breaks.
+ *
+ * `words` comes along because it is already on the row and lets the page state
+ * a reading time without measuring 40 KB of text first.
+ */
+export const TranscriptResponseSchema = SermonMetaSchema.extend({
+  text: z.string(),
+  words: z.number().int().nonnegative(),
+});
+export type TranscriptResponse = z.infer<typeof TranscriptResponseSchema>;
+
 /** The old server's feedback box, ported from an append-only text file to a table. */
 export const SuggestionRequestSchema = z.object({
   suggestion: z.string().trim().min(3).max(2000),

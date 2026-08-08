@@ -11,9 +11,11 @@ import { facetCounts } from "./lib/browse/counts.ts";
 import { facetTree } from "./lib/browse/facets.ts";
 import { type BrowseSort, listSermons } from "./lib/browse/list.ts";
 import { filtersFromQuery } from "./lib/browse/query.ts";
+import { DATA_DIR } from "./lib/data-dir.ts";
 import type { EmbeddingsClient } from "./lib/embeddings.ts";
 import type { Reranker } from "./lib/rerank.ts";
 import { search } from "./lib/search.ts";
+import { readSermonTranscript } from "./lib/transcript.ts";
 
 /**
  * The search API.
@@ -104,6 +106,26 @@ export function createApp(deps: AppDeps): Hono {
     } catch (err) {
       console.error("[sermons] failed", err);
       return c.json({ error: "Não foi possível listar os sermões." }, 500);
+    }
+  });
+
+  /**
+   * A whole sermon, for the reading page.
+   *
+   * Registered before the SPA fallback in server.ts, or the catch-all would
+   * answer it with index.html. Cached for a day because a transcript only
+   * changes when the corpus is re-indexed and a release replaces the container
+   * anyway; the median file is 40 KB, which is worth not re-sending.
+   */
+  app.get("/api/sermons/:id/transcript", async (c) => {
+    try {
+      const transcript = await readSermonTranscript(deps.prisma, DATA_DIR, c.req.param("id"));
+      if (!transcript) return c.json({ error: "Sermão não encontrado." }, 404);
+      c.header("Cache-Control", "public, max-age=86400");
+      return c.json(transcript);
+    } catch (err) {
+      console.error("[transcript] failed", err);
+      return c.json({ error: "Não foi possível carregar a transcrição." }, 500);
     }
   });
 

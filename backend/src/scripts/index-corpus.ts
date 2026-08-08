@@ -61,6 +61,11 @@ async function upsertSermon(prisma: PrismaClientType, s: SermonRecord): Promise<
     sentences: s.sentences,
     wordsMin: s.wordsMin,
     sentencesMin: s.sentencesMin,
+    // The reading page needs the file name to serve the whole sermon, and it
+    // cannot be worked out from the title: `txt` equals `name + ".txt"` in only
+    // 456 of 514 corpus rows. Written here rather than by a migration because
+    // this is the one place that already knows which row goes with which file.
+    transcriptFile: s.transcriptFile,
   };
   await prisma.sermon.upsert({ where: { id: s.id }, create: { id: s.id, ...row }, update: row });
 }

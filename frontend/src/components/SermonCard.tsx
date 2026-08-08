@@ -1,8 +1,10 @@
 import { useId, useState } from "react";
+import { Link } from "react-router-dom";
 import { formatDate, formatDuration, stripLeadingDate } from "../lib/format.ts";
 import type { SermonGroup } from "../lib/group.ts";
-import { highlight, snippet } from "../lib/highlight.ts";
+import { snippet } from "../lib/highlight.ts";
 import { Card } from "./Card.tsx";
+import { Highlighted } from "./Highlighted.tsx";
 import { PlayLinks } from "./PlayLinks.tsx";
 
 /**
@@ -19,20 +21,7 @@ function Excerpt({ text, query, clamp }: { text: string; query: string; clamp: b
     <p
       className={`font-display text-[1.02rem] italic leading-relaxed text-card-foreground/90 ${clamp ? "line-clamp-4" : ""}`}
     >
-      {highlight(shown, query).map((part, i) =>
-        part.match ? (
-          <mark
-            // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional slices of one string
-            key={i}
-            className="rounded bg-highlight px-0.5 font-medium text-highlight-foreground"
-          >
-            {part.text}
-          </mark>
-        ) : (
-          // biome-ignore lint/suspicious/noArrayIndexKey: parts are positional slices of one string
-          <span key={i}>{part.text}</span>
-        ),
-      )}
+      <Highlighted text={shown} query={query} />
     </p>
   );
 }
@@ -87,6 +76,17 @@ export function SermonCard({ group, query }: { group: SermonGroup; query: string
             ? `Ver trecho completo e mais ${more.length} ${more.length === 1 ? "passagem" : "passagens"}`
             : "Ver trecho completo"}
       </button>
+
+      {/* Deliberately not the button above: that one un-clamps the passage, this
+          one leaves for the whole sermon. Two labels containing "completo" next
+          to each other would be a coin toss. The query and the matched chunk
+          travel in the URL so the reading page opens where the search landed. */}
+      <Link
+        to={`/sermao/${encodeURIComponent(top.id)}?q=${encodeURIComponent(query)}&trecho=${top.chunkIndex}`}
+        className="mt-2 ml-4 inline-flex rounded text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+        Ler a mensagem inteira →
+      </Link>
 
       <PlayLinks title={title} soundcloudUrl={top.soundcloudUrl} spotifyUrl={top.spotifyUrl} />
     </Card>

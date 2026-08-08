@@ -1,0 +1,15 @@
+-- Where a sermon's full transcript lives under data/transcripts/.
+--
+-- The reading page (/sermao/:id) serves the whole text, and the file name is
+-- the one thing it cannot work out for itself: `txt` equals `name + ".txt"` in
+-- only 456 of the 514 corpus rows, so deriving it from the title would 404 on
+-- one sermon in nine.
+--
+-- The text is deliberately NOT stored here. data/ already ships inside the
+-- image (see the Dockerfile), so a second copy in Postgres would cost 20 MB to
+-- buy nothing, and `readTranscript()` already knows how to read the first one.
+--
+-- Idempotent, like every file in this directory: in production these are
+-- applied verbatim by a postgres:16-alpine sidecar on every deploy, with no
+-- Prisma CLI in the image to notice that a column already exists.
+ALTER TABLE sermons ADD COLUMN IF NOT EXISTS transcript_file text;

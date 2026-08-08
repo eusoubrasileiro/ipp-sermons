@@ -1,7 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { toBrowseQuery } from "../api.ts";
 import { SermonListItem } from "./SermonListItem.tsx";
+
+/** The title links to the reading page now, so every render needs a router. */
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: MemoryRouter });
 
 const base = {
   id: "1",

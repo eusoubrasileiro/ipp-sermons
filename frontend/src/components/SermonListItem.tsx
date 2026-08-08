@@ -1,4 +1,5 @@
 import { soundcloudUrl, spotifyUrl } from "@ipp/shared";
+import { Link } from "react-router-dom";
 import type { BrowseSermon } from "../api.ts";
 import { formatDate, formatDuration, stripLeadingDate } from "../lib/format.ts";
 import { PlayLinks } from "./PlayLinks.tsx";
@@ -37,7 +38,16 @@ export function SermonListItem({ sermon }: { sermon: BrowseSermon }) {
         {sermon.seriesPart !== null ? (
           <span className="text-muted-foreground">{sermon.seriesPart}. </span>
         ) : null}
-        {title}
+        {/* The title is the link here rather than a separate "ler" action: in a
+            listing of forty sermons an extra line per row is noise, and the
+            title is what a reader reaches for anyway. No query to carry -- they
+            arrived by book or course, so the page opens at the beginning. */}
+        <Link
+          to={`/sermao/${encodeURIComponent(sermon.id)}`}
+          className="rounded underline-offset-4 hover:underline"
+        >
+          {title}
+        </Link>
       </h3>
       {passages.length > 0 || sermon.series ? (
         <p className="mt-0.5 text-xs text-muted-foreground">

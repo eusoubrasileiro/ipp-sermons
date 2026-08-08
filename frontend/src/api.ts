@@ -1,4 +1,4 @@
-import type { SearchFilters, SearchResponse } from "@ipp/shared";
+import type { SearchFilters, SearchResponse, TranscriptResponse } from "@ipp/shared";
 
 /** Thin API client. Same origin in production; Vite proxies /api in dev. */
 
@@ -115,4 +115,17 @@ export async function browseSermons(
   const res = await fetch(`/api/sermons?${query}`);
   if (!res.ok) throw new Error("Não foi possível listar os sermões.");
   return (await res.json()) as { total: number; sermons: BrowseSermon[]; pagina: number };
+}
+
+/**
+ * A whole sermon, for the reading page. Cached for a day by the server, so a
+ * reader moving between results and transcript pays for it once.
+ */
+export async function fetchTranscript(id: string): Promise<TranscriptResponse> {
+  const res = await fetch(`/api/sermons/${encodeURIComponent(id)}/transcript`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? "Não foi possível carregar a transcrição.");
+  }
+  return (await res.json()) as TranscriptResponse;
 }

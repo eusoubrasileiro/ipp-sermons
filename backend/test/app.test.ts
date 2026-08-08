@@ -349,3 +349,36 @@ describe("GET /api/facets/counts", () => {
     expect(JSON.stringify(await res.json())).not.toContain("10.0.0.5");
   });
 });
+
+describe("GET /api/sermons/:id/transcript", () => {
+  const stubTranscript = (row: unknown) =>
+    ({ sermon: { findUnique: vi.fn(async () => row) } }) as unknown as PrismaClient;
+
+  it("404s a sermon whose row carries no transcript file", async () => {
+    // Registered before the SPA catch-all in server.ts. If it ever slips behind
+    // it, this returns 200 with index.html and the reading page renders the
+    // shell inside itself -- which looks like a frontend bug for a long time.
+    const app = createApp({ prisma: stubTranscript(null), embeddings: stubEmbeddings() });
+    const res = await app.request("/api/sermons/nao-existe/transcript");
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: string }).toMatchObject({
+      error: "Sermão não encontrado.",
+    });
+  });
+
+  it("does not leak an internal error to the reader", async () => {
+    const prisma = {
+      sermon: {
+        findUnique: vi.fn(async () => {
+          throw new Error("connect ECONNREFUSED 10.0.0.5:5432");
+        }),
+      },
+    } as unknown as PrismaClient;
+    const app = createApp({ prisma, embeddings: stubEmbeddings() });
+    const res = await app.request("/api/sermons/123/transcript");
+
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(await res.json())).not.toContain("10.0.0.5");
+  });
+});

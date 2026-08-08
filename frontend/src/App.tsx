@@ -6,6 +6,7 @@ import { DatesPage } from "./pages/DatesPage.tsx";
 import { PreachersPage } from "./pages/PreachersPage.tsx";
 import { SearchPage } from "./pages/SearchPage.tsx";
 import { SeriesPage } from "./pages/SeriesPage.tsx";
+import { SermonPage } from "./pages/SermonPage.tsx";
 import { TopicsPage } from "./pages/TopicsPage.tsx";
 
 /**
@@ -44,6 +45,7 @@ export function App() {
             <Route path="/datas" element={<DatesPage />} />
             <Route path="/datas/:ano" element={<DatesPage />} />
             <Route path="/datas/:ano/:mes" element={<DatesPage />} />
+            <Route path="/sermao/:id" element={<SermonPage />} />
             <Route path="*" element={<SearchPage />} />
           </Routes>
         </main>
