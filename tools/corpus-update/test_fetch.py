@@ -71,3 +71,24 @@ def test_a_track_ffprobe_cannot_read_is_kept(tmp_path, monkeypatch):
     path = download(tmp_path, monkeypatch, "f [6]", declared=3600, measured=None)
     assert fetch.discard_if_short(path) is True
     assert path.exists()
+
+
+def test_the_sweep_makes_the_fix_retroactive(tmp_path, monkeypatch):
+    """`already_have()` accepts any file with an audio suffix, so without the
+    sweep `main` never asks for a track it has and the completeness check --
+    which only runs after a download -- never sees it. 46 short files sat in
+    the work directory exactly that way."""
+    whole = download(tmp_path, monkeypatch, "a [1]", declared=3600, measured=3599)
+    short = tmp_path / "audio" / "b [2].m4a"
+    short.write_bytes(b"audio")
+    (tmp_path / "audio" / "b [2].info.json").write_text(json.dumps({"duration": 3600}))
+
+    # One ffprobe answer per file, keyed by name rather than a single constant.
+    monkeypatch.setattr(fetch, "measured_duration",
+                        lambda p: 3599 if p.name.startswith("a ") else 60)
+
+    pending = [{"id": "1"}, {"id": "2"}]
+    assert fetch.sweep_short_downloads(pending) == 1
+    assert whole.exists()
+    assert not short.exists()
+    assert [t["id"] for t in pending if not fetch.already_have(t["id"])] == ["2"]

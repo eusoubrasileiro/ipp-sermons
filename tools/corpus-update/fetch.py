@@ -123,9 +123,33 @@ def fetch(track: dict) -> bool:
         return False
 
 
+def sweep_short_downloads(pending: list[dict]) -> int:
+    """Re-checks what previous runs left behind, discarding anything short.
+
+    Without this the fix is not retroactive: `already_have()` accepts any file
+    with an audio suffix, so `main` never asks for a track it has, and the
+    completeness check in `fetch` -- which only runs after a download -- never
+    sees it. 46 short files sat in the work directory that way, and the only
+    thing that would have re-fetched them was somebody deleting them by hand.
+
+    Costs one ffprobe per downloaded track per run, which is seconds over the
+    whole archive and buys a pipeline that repairs itself.
+    """
+    discarded = 0
+    for track in pending:
+        path = audio_path(track["id"])
+        if path is not None and not discard_if_short(path):
+            discarded += 1
+    return discarded
+
+
 def main() -> None:
     config.ensure_dirs()
     pending = json.loads(config.PENDING_JSON.read_text(encoding="utf-8"))
+
+    discarded = sweep_short_downloads(pending)
+    if discarded:
+        print(f"discarded {discarded} short download(s) from a previous run", flush=True)
 
     todo = [t for t in pending if not already_have(t["id"])]
     print(f"pending {len(pending)}, to download {len(todo)}", flush=True)
