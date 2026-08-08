@@ -10,14 +10,15 @@ import type { PrismaClient } from "@prisma/client";
  */
 export type BrowseSort = "data" | "biblia" | "serie";
 
-/** A filtered listing with no query text — what every index page links to. */
-export async function listSermons(
-  prisma: PrismaClient,
-  filters: SearchFilters,
-  sort: BrowseSort = "data",
-  page = 1,
-  perPage = 20,
-): Promise<{ total: number; sermons: Record<string, unknown>[] }> {
+/**
+ * The facets as a Prisma `where`.
+ *
+ * Exported because the prerendered browse pages (`lib/seo/`) need the same
+ * filter over a much narrower `select` — they list links, not sermon cards —
+ * and a second copy of this mapping is how a facet would start meaning one
+ * thing to the API and another to a crawler.
+ */
+export function sermonWhere(filters: SearchFilters): Record<string, unknown> {
   const where: Record<string, unknown> = {};
   if (filters.pregadores?.length) where.artist = { in: filters.pregadores };
   if (filters.tipos?.length) where.serviceType = { in: filters.tipos };
@@ -39,6 +40,19 @@ export async function listSermons(
   if (filters.temas?.length) {
     where.topics = { some: { topicSlug: { in: filters.temas } } };
   }
+
+  return where;
+}
+
+/** A filtered listing with no query text — what every index page links to. */
+export async function listSermons(
+  prisma: PrismaClient,
+  filters: SearchFilters,
+  sort: BrowseSort = "data",
+  page = 1,
+  perPage = 20,
+): Promise<{ total: number; sermons: Record<string, unknown>[] }> {
+  const where = sermonWhere(filters);
 
   // A course reads in order, and the lesson with no number is its introduction
   // -- nulls first, or "Introdução" lands after part 2.

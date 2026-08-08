@@ -1,7 +1,9 @@
+import { sermonTitle } from "@ipp/shared";
 import { useParams, useSearchParams } from "react-router-dom";
 import { ErrorState } from "../components/States.tsx";
 import { TranscriptBody } from "../components/TranscriptBody.tsx";
 import { TranscriptHeader } from "../components/TranscriptHeader.tsx";
+import { useDocumentTitle } from "../lib/useDocumentTitle.ts";
 import { useTranscript } from "../lib/useTranscript.ts";
 
 /**
@@ -33,6 +35,11 @@ export function SermonPage() {
   const [params] = useSearchParams();
   const query = params.get("q") ?? "";
   const { status, transcript, error, retry } = useTranscript(id);
+
+  // Arriving here client-side, the tab still names wherever the visitor came
+  // from; arriving from a search engine it already says this, and re-setting it
+  // to the same string costs nothing.
+  useDocumentTitle(transcript ? sermonTitle(transcript.title, transcript.artist) : null);
 
   if (status === "loading") {
     return (

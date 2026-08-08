@@ -15,10 +15,13 @@ import { DATA_DIR } from "./lib/data-dir.ts";
 import type { EmbeddingsClient } from "./lib/embeddings.ts";
 import type { Reranker } from "./lib/rerank.ts";
 import { search } from "./lib/search.ts";
+import { registerSeoRoutes } from "./lib/seo/routes.ts";
+import { createShellLoader } from "./lib/seo/shell.ts";
+import { PUBLIC_DIR, SITE_URL } from "./lib/seo/site.ts";
 import { readSermonTranscript } from "./lib/transcript.ts";
 
 /**
- * The search API.
+ * The search API, and the server-rendered pages a crawler reads.
  *
  * Built as a factory taking its dependencies rather than importing singletons,
  * so tests can drive the real routes with stub embeddings and no network.
@@ -28,10 +31,17 @@ export type AppDeps = {
   prisma: PrismaClient;
   embeddings: EmbeddingsClient;
   reranker?: Reranker | undefined;
+  /** Where `transcripts/` lives. Injectable so tests can point at a fixture. */
+  dataDir?: string | undefined;
+  /** The built SPA. Its `index.html` is the shell the prerenderer writes into. */
+  publicDir?: string | undefined;
+  /** Absolute origin for canonical and Open Graph URLs. */
+  siteUrl?: string | undefined;
 };
 
 export function createApp(deps: AppDeps): Hono {
   const app = new Hono();
+  const dataDir = deps.dataDir ?? DATA_DIR;
 
   app.use("/api/*", cors());
 
@@ -119,7 +129,7 @@ export function createApp(deps: AppDeps): Hono {
    */
   app.get("/api/sermons/:id/transcript", async (c) => {
     try {
-      const transcript = await readSermonTranscript(deps.prisma, DATA_DIR, c.req.param("id"));
+      const transcript = await readSermonTranscript(deps.prisma, dataDir, c.req.param("id"));
       if (!transcript) return c.json({ error: "Sermão não encontrado." }, 404);
       c.header("Cache-Control", "public, max-age=86400");
       return c.json(transcript);
@@ -157,6 +167,18 @@ export function createApp(deps: AppDeps): Hono {
 
     await deps.prisma.suggestion.create({ data: { suggestion: parsed.data.suggestion } });
     return c.json({ ok: true });
+  });
+
+  /**
+   * Last, so nothing here can shadow an API route -- and still ahead of the
+   * static middleware and the SPA catch-all, which live in server.ts and would
+   * otherwise answer every one of these with the empty shell.
+   */
+  registerSeoRoutes(app, {
+    prisma: deps.prisma,
+    dataDir,
+    shell: createShellLoader(deps.publicDir ?? PUBLIC_DIR),
+    siteUrl: deps.siteUrl ?? SITE_URL,
   });
 
   return app;

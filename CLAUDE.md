@@ -36,10 +36,28 @@ backend/  Hono   POST /api/search  → hybrid_search() → cross-encoder rerank
                  GET  /api/facets  → the browse index tree
                  GET  /api/facets/counts → the same, narrowed to active filters
                  GET  /api/sermons → filtered listing, no query, no model
+                 GET  /sermao/:id, /biblia/…, /sitemap.xml → prerendered HTML
         │
         ▼
 frontend/ Vite + React 19, built into backend/public/ and served same-origin
 ```
+
+### Why the server renders HTML at all
+
+The SPA fallback answered **every** unmatched GET with the same empty
+`index.html`, so 560 sermons — 3.6 million words of exactly the long-tail
+Portuguese prose a search engine rewards — were one indexable URL. `lib/seo/`
+rewrites the built shell per request: the page's own `<title>`, a description
+cut from the sermon's opening words, canonical + Open Graph tags, and the text
+itself inside `<div id="root">`.
+
+It is **string injection, not `renderToString`**. The runtime image ships
+`backend/dist` and `backend/public` only; React and the JSX pages are not in it,
+and `main.tsx` calls `createRoot` (not `hydrateRoot`), which clears its container
+before the first render — so the injected body never has to match React's output
+byte for byte, only carry the same words. Anything it cannot build (missing
+sermon, unknown facet slug, database down, frontend never built) calls `next()`
+and lets the static middleware answer exactly as before.
 
 One container serves API and SPA, so there is no CORS and no second origin in
 production. `shared/` holds the Zod schemas both sides validate against.
@@ -71,10 +89,11 @@ is the honest place for it. Do not "modernise" this into a framework call.
 
 | Path | Purpose |
 |------|---------|
-| `shared/src/` | Zod schemas + types shared by API and UI, plus `audio-urls` (both sides build play links). Built to `dist/` first; everything else depends on it. |
+| `shared/src/` | Zod schemas + types shared by API and UI, plus `audio-urls` (both sides build play links), `format` (title/date/`<title>`) and `paragraphs` (transcript splitting) — the server prerenders these and the SPA renders them again, so one copy. Built to `dist/` first; everything else depends on it. |
 | `backend/src/lib/` | `search` (retrieval), `embeddings`, `rerank`, `llm` + `openrouter` (offline passes), `corpus` (CSV + transcript reader), `podcast-feed` (Spotify liveness) |
 | `backend/src/lib/facets/` | Facet derivation: `bible`, `parse-title`, `parse-scripture`, `cluster`, `series-taxonomy`, `extract-prompt`, `topics`, `batch`, `csv`, `slugify` |
 | `backend/src/lib/browse/` | `facets` (index tree), `counts` (adjusted for active filters), `list` (filtered listing), `query` (shared param parsing) |
+| `backend/src/lib/seo/` | Server-rendered HTML for crawlers: `html` (escaping + shell injection), `shell` (the built `index.html`), `sermon-page`, `listing-page`, `browse-pages`, `sitemap`, `routes`, `layout`, `site` |
 | `backend/src/scripts/` | `index-corpus`, `eval-golden`, and the facet pipeline below |
 | `backend/prisma/` | `schema.prisma` + `sql/` — **the sql files ARE the migrations** |
 | `frontend/src/` | Vite + React 19 + Tailwind SPA, Portuguese UI. Filter state lives in the URL (`lib/facet-params.ts`). |
@@ -176,6 +195,27 @@ Each of these cost real debugging time. They are not obvious from the code.
    app reads. SoundCloud covers 100% of the corpus and is never suppressed.
    Background for the church's IT contact: `docs/spotify-feed-window.md`.
 
+10. **The prerendered HTML must never carry a `max-age`.** It names the bundle
+    in `<script src="/assets/index-<hash>.js">`, and every release changes that
+    hash. A browser holding the document asks the new container for the old
+    file, the SPA catch-all answers with `index.html`, and the browser refuses
+    it as a module on MIME grounds — a blank site for the length of the
+    max-age. `HTML_CACHE_CONTROL` in `lib/seo/routes.ts` is
+    `max-age=0, must-revalidate` for exactly this; `sitemap.xml` and
+    `robots.txt` name no hashed asset and keep their hour.
+
+11. **`String.replace` with a replacement *string* expands `$&`, `` $` `` and
+    `$'`.** The shell injection interpolates sermon titles and 40 KB of
+    transcribed speech, so every replace in `lib/seo/html.ts` passes a
+    *function* instead. With a string, a sermon titled with a `$&` would splice
+    the surrounding `index.html` into its own page.
+
+12. **The SPA now has to maintain `document.title`.** It never did — the title
+    was one constant for the whole site. Since the server writes the page's real
+    title, a client-side navigation away would leave the tab advertising a page
+    the visitor left. `lib/useDocumentTitle.ts` keeps what the server wrote for
+    the page actually landed on and resets it on any navigation away.
+
 ## Critical files
 
 Protected by the `ask` tier in `.claude/settings.json` and by the critical-paths
@@ -269,6 +309,9 @@ Rollback: pin `IMAGE_TAG` in `.env` to the previous digest and
 
 - **UI text is Portuguese.** Code, comments and commit messages are English.
 - **OpenRouter is the single LLM credential** — embeddings and reranking both.
+- **`PUBLIC_BASE_URL`** sets the origin in canonical and Open Graph URLs. It
+  defaults to the production origin, so nothing has to be set to deploy; set it
+  when serving the site under any other name.
 - Embeddings are **1536-d, not 3072**: pgvector caps HNSW on `vector` at 2000
   dimensions. Changing dimension means re-indexing the whole corpus (paid).
 - The corpus is filtered to alignment `score > 50`, inherited from the GPU
