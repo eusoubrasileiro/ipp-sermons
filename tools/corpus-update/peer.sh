@@ -6,11 +6,12 @@
 #   tools/corpus-update/peer.sh status   predator
 #   tools/corpus-update/peer.sh collect  predator        # transcripts home, assignment released
 #
-# Only the transcribe stage is shared, and only ever one way: audio goes out,
-# `raw/*.txt` and `alignment/*.gz` come back. Everything else -- discover,
-# fetch, postprocess, append -- stays on the box that owns `data/`, because
-# `words`, `sentences`, `sent_ratio` and `score` have to keep coming from one
-# spaCy/LanguageTool install or new rows stop being comparable to the old ones.
+# Only the transcribe stage is shared, and only ever one way: audio and its
+# .info.json go out, `raw/*.txt` and `alignment/*.gz` come back. Everything
+# else -- discover, fetch, postprocess, append -- stays on the box that owns
+# `data/`, because `words`, `sentences`, `sent_ratio` and `score` have to keep
+# coming from one spaCy/LanguageTool install or new rows stop being comparable
+# to the old ones.
 #
 # What makes this safe rather than a race is `$WORK/assigned/<host>.txt`: the
 # audio handed to a peer is written down, and this box's transcribe stage skips
@@ -87,6 +88,25 @@ EOF
   # gigabytes the peer already has.
   rsync -a --ignore-existing --info=progress2 --files-from="$HANDOUT" \
     "$WORK/audio/" "$HOST:$PEER_WORK/audio/"
+
+  # The .info.json sidecars go with it, and they are what let the peer judge
+  # its own output: `coverage` divides by the duration SoundCloud declared, and
+  # with no sidecar to ask it falls back to measuring the .wav -- which a
+  # truncated download passes against itself, every time. Sending audio alone
+  # once cost a night of GPU that came home as 27 well-formed transcripts of
+  # sermons that had only partly downloaded.
+  #
+  # Listed one by one rather than globbed because a track whose sidecar is
+  # missing is not a reason to abort a dispatch of fifty.
+  sidecars=$(mktemp)
+  trap 'rm -f "$sidecars"' EXIT
+  while IFS= read -r name; do
+    if [ -f "$WORK/audio/${name%.*}.info.json" ]; then
+      printf '%s\n' "${name%.*}.info.json"
+    fi
+  done < "$HANDOUT" > "$sidecars"
+  echo "$(wc -l < "$sidecars") sidecars"
+  rsync -a --files-from="$sidecars" "$WORK/audio/" "$HOST:$PEER_WORK/audio/"
 
   say "starting $HOST"
   # setsid so it survives this ssh, the peer's desktop logout and a dropped

@@ -24,6 +24,10 @@ def download(tmp_path, monkeypatch, stem: str, *, declared: float | None,
     audio = tmp_path / "audio"
     audio.mkdir(exist_ok=True)
     monkeypatch.setattr(config, "AUDIO_DIR", audio)
+    for name in ("RAW_DIR", "ALIGNMENT_DIR"):
+        d = tmp_path / name.split("_")[0].lower()
+        d.mkdir(exist_ok=True)
+        monkeypatch.setattr(config, name, d)
 
     if declared is not None:
         (audio / f"{stem}.info.json").write_text(json.dumps({"duration": declared}))
@@ -86,6 +90,38 @@ def test_a_track_ffprobe_cannot_read_is_discarded(tmp_path, monkeypatch):
 def test_a_track_with_neither_a_sidecar_nor_a_readable_stream_is_discarded(tmp_path, monkeypatch):
     path = download(tmp_path, monkeypatch, "g [7]", declared=None, measured=None)
     assert fetch.discard_if_short(path) is False
+
+
+def test_discarding_the_audio_also_drops_the_transcript_made_from_it(tmp_path, monkeypatch):
+    """Deleting the audio is only half of "fetch this again".
+
+    `transcribe.pending_audio()` calls a stem done when `raw/<stem>.txt` exists,
+    and re-downloading does not change the stem. So a discarded track came back
+    whole and was then skipped forever, still carrying the transcript of the
+    truncated version -- which is why the twelve repaired sermons needed the
+    work directory cleaned out by hand before they would transcribe again.
+    """
+    path = download(tmp_path, monkeypatch, "h [8]", declared=3600, measured=60)
+    raw = config.RAW_DIR / "h [8].txt"
+    alignment = config.ALIGNMENT_DIR / "h [8].gz"
+    raw.write_text("half a sermon")
+    alignment.write_bytes(b"gz")
+
+    assert fetch.discard_if_short(path) is False
+    assert not raw.exists()
+    assert not alignment.exists()
+
+
+def test_a_whole_download_keeps_its_transcript(tmp_path, monkeypatch):
+    """The counterpart, and the one that matters for cost: the sweep runs over
+    every downloaded track on every run, so clearing a good sermon's transcript
+    would re-transcribe the whole corpus."""
+    path = download(tmp_path, monkeypatch, "i [9]", declared=3600, measured=3599)
+    raw = config.RAW_DIR / "i [9].txt"
+    raw.write_text("a whole sermon")
+
+    assert fetch.discard_if_short(path) is True
+    assert raw.exists()
 
 
 def test_the_sweep_makes_the_fix_retroactive(tmp_path, monkeypatch):

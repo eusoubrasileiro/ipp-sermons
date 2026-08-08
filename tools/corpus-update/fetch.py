@@ -66,8 +66,23 @@ def measured_duration(path: pathlib.Path) -> float | None:
         return None
 
 
+def discard(path: pathlib.Path) -> None:
+    """Remove a download and everything derived from it.
+
+    Deleting the audio alone is only half of "fetch this again". Work is keyed
+    by stem, and re-downloading does not change the stem, so `pending_audio()`
+    in transcribe.py goes on seeing `raw/<stem>.txt` and calls the sermon done
+    -- the track comes back whole and is then skipped forever, still carrying
+    the transcript of the truncated version. Clearing the work directory by
+    hand was the only cure, and it is what the twelve repaired sermons needed.
+    """
+    path.unlink(missing_ok=True)
+    (config.RAW_DIR / f"{path.stem}.txt").unlink(missing_ok=True)
+    (config.ALIGNMENT_DIR / f"{path.stem}.gz").unlink(missing_ok=True)
+
+
 def discard_if_short(path: pathlib.Path) -> bool:
-    """True when the download is whole; deletes it and returns False when not.
+    """True when the download is whole; discards it and returns False when not.
 
     SoundCloud serves HLS in ~300 fragments and 403s under load. Once
     `fragment_retries` is spent yt-dlp finalises what it has: a short file that
@@ -75,8 +90,9 @@ def discard_if_short(path: pathlib.Path) -> bool:
     the sermon. 46 of 151 downloads came back this way, nine of them reaching
     production as transcripts covering 2-47% of the class.
 
-    Deleting rather than flagging is deliberate -- it is what makes the next run
-    fetch it again, since `already_have()` is the only record of what is done.
+    Discarding rather than flagging is deliberate -- it is what makes the next
+    run fetch it again, since `already_have()` is the only record of what is
+    done.
     """
     measured = measured_duration(path)
     if measured is None:
@@ -85,7 +101,7 @@ def discard_if_short(path: pathlib.Path) -> bool:
         # (`trun track id unknown, no tfhd was found`), which fails every
         # transcription attempt forever unless the file goes.
         print(f"  UNREADABLE {path.name} -- discarding for re-download", flush=True)
-        path.unlink(missing_ok=True)
+        discard(path)
         return False
 
     declared = config.declared_duration(path.stem)
@@ -103,7 +119,7 @@ def discard_if_short(path: pathlib.Path) -> bool:
         f"({measured / declared:.0%}) -- discarding for re-download",
         flush=True,
     )
-    path.unlink(missing_ok=True)
+    discard(path)
     return False
 
 

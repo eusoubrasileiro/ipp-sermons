@@ -54,10 +54,18 @@ tools/corpus-update/peer.sh status   predator
 tools/corpus-update/peer.sh collect  predator      # transcripts home, assignment released
 ```
 
-Audio goes out, `raw/*.txt` and `alignment/*.gz` come back, and nothing else
-moves. `discover`, `fetch`, `postprocess` and `append` stay on the box that owns
-`data/`, for the reason the section above gives: those numbers have to keep
-coming from one spaCy/LanguageTool install.
+Audio and its `.info.json` go out, `raw/*.txt` and `alignment/*.gz` come back,
+and nothing else moves. `discover`, `fetch`, `postprocess` and `append` stay on
+the box that owns `data/`, for the reason the section above gives: those numbers
+have to keep coming from one spaCy/LanguageTool install.
+
+The sidecar is not cargo. `coverage()` divides the transcript's last timestamp
+by the duration SoundCloud declared, and with no sidecar to ask it falls back to
+measuring the `.wav` — which a truncated download passes against itself, every
+time. Dispatch sent audio alone once, and a night of GPU came home as 27
+well-formed transcripts of sermons that had only partly downloaded. `collect`
+re-checks every transcript for the same reason, but by then the GPU time is
+already spent.
 
 What keeps the two boxes off each other's work is
 `$IPP_WORK_DIR/assigned/<host>.txt`, written by `dispatch` and read by every
