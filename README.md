@@ -18,26 +18,11 @@ Postgres function, then reranked by a cross-encoder.
 
 ## Running it
 
-```bash
-# install and build the shared package everything else depends on
-pnpm install
-pnpm --filter @ipp/shared build
-pnpm --filter @ipp/backend exec prisma generate
-
-# Postgres + pgvector on :5439, then schema + the raw search SQL
-pnpm db:up
-pnpm db:push
-
-# index the corpus (needs OPENROUTER_API_KEY; --limit 5 for a smoke run)
-pnpm index
-
-pnpm dev
-```
-
-Copy `.env.example` to `.env` first. Architecture, operational traps and the
-contribution gates are documented in [`CLAUDE.md`](./CLAUDE.md).
+Copy `.env.example` to `.env`, then follow the Development section of
+[`CLAUDE.md`](./CLAUDE.md) — it also carries the architecture, the operational
+traps and the contribution gates.
 
 ## Corpus
 
-456 sermons, ~20 MB of transcripts under `data/`. Audio is never hosted here.
+~610 sermons, ~27 MB of transcripts under `data/`. Audio is never hosted here.
 Transcription runs offline in `tools/corpus-update/` (Python + WhisperX).

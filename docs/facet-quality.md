@@ -28,33 +28,30 @@ Isso importa mais desde que `pnpm corpus:update` roda sem paradas.
 
 ## Passo 1 — julgar as divergências (≈20 min, uma vez)
 
-A bancada devolve um CSV onde a maioria das linhas tem todas as configurações
-concordando. Essas ninguém precisa ler. Sobram as divergências — tipicamente um
-terço da amostra.
-
 ```bash
-pnpm compare:topics --sample 40          # ~$0,11, escreve .compare/topics-<data>.csv
+pnpm compare:topics --sample 40    # ~$0,11, escreve .compare/topics-<data>-n<amostra>.csv
 ```
 
-Abra o CSV numa planilha. Para cada linha marcada `concordam=nao`, leia os temas
-propostos por cada configuração e escreva `A`, `B`, `C` ou `D` na coluna
-`melhor`. Deixe em branco quando não houver diferença que importe.
+O CSV já vem filtrado: só as linhas em que as configurações divergem —
+tipicamente um terço da amostra. Abra numa planilha, leia os temas propostos em
+cada coluna `<config>_temas` e escreva o id da configuração vencedora (`A` a
+`E`) na coluna `melhor`. Deixe em branco quando não houver diferença que
+importe.
 
-```bash
-pnpm compare:topics --score .compare/topics-<data>.csv
-```
+Contar os votos ainda é manual: não existe `--score`. É trabalho do Passo 2, e
+é pequeno.
 
-Ele conta os votos e diz qual configuração venceu. **Isto é o que responde as
-duas perguntas abertas:**
+**As duas perguntas que esse julgamento responde:**
 
 1. **Transcript inteiro vale mais que a amostra de 3 janelas?** A amostra guarda
-   51% do texto e economiza $0,26 no corpus inteiro — os 504 sermões, não por
-   rodada. Se o texto inteiro vencer, a economia não se justifica.
+   51% do texto e economiza $0,26 no corpus inteiro — não por rodada. Se o texto
+   inteiro vencer, a economia não se justifica.
 2. **Um modelo mais barato serve?** Os candidatos com `structured_outputs` real
    custam entre um décimo e um terço do `gpt-5.6-luna`. Trocar sem medir é
    apostar ground truth commitado.
 
-Reclassificar os 504 custa ~$0,53 e continua sendo decisão do dono, depois disso.
+Reclassificar o corpus inteiro custa ~$1 e continua sendo decisão do dono,
+depois disso.
 
 ## Passo 2 — o julgamento vira gate (≈1h30 de código)
 
@@ -90,8 +87,8 @@ conviver com a inconsistência.
 **`structured_outputs` não é `response_format`.** Só o primeiro garante
 `strict: true`, e é ele que faz o enum fechado impedir o modelo de inventar um
 livro da Bíblia ou um tema fora da taxonomia. Vários modelos baratos anunciam
-apenas o segundo — `qwen/qwen3.7-flash` entre eles, que por isso foi descartado
-depois de ter sido recomendado por engano.
+apenas o segundo — `qwen/qwen3.7-flash` entre eles. Confira o campo antes de
+pôr um candidato na bancada.
 
 **O aviso contra o DeepSeek em `llm.ts` cita issues do V3.** O V4 Flash é outra
 geração e entra na bancada como candidato. Se for absolvido, o comentário muda
