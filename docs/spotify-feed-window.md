@@ -40,8 +40,9 @@ Testamos os episódios um a um contra o Spotify e comparamos com o feed:
 A correspondência foi exata em todos os casos testados. Ou seja: **não é a idade
 do sermão que decide, é estar ou não dentro do feed.**
 
-Hoje isso atinge **115 dos 484 sermões** que têm episódio no Spotify — todos de
+Hoje isso atinge **115 dos 543 sermões** que têm episódio no Spotify — todos de
 2019, 2020 e início de 2021. E o número cresce sozinho a cada publicação nova.
+(A contagem do dia está em `data/facets/spotify_episodes.csv`.)
 
 *Observação de método: o Spotify bloqueia consultas em massa (HTTP 429). Os
 números acima vêm de amostras espaçadas, não de uma varredura completa.*
