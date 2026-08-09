@@ -225,8 +225,8 @@ def fetch(track: dict) -> bool:
         return False
 
 
-def sweep_short_downloads(pending: list[dict]) -> int:
-    """Re-checks what previous runs left behind, discarding anything short.
+def sweep_short_downloads() -> list[dict]:
+    """Re-checks every download on disk, discarding and returning the damaged.
 
     Without this the fix is not retroactive: `already_have()` accepts any file
     with an audio suffix, so `main` never asks for a track it has, and the
@@ -234,26 +234,42 @@ def sweep_short_downloads(pending: list[dict]) -> int:
     sees it. 46 short files sat in the work directory that way, and the only
     thing that would have re-fetched them was somebody deleting them by hand.
 
-    Costs one ffprobe per downloaded track per run, which is seconds over the
-    whole archive and buys a pipeline that repairs itself.
+    The whole directory rather than `pending.json`, because `discover` lists
+    what SoundCloud has and the corpus does not: a sermon already in
+    metadata.csv is never pending, which is exactly the case a repair is. Every
+    damaged download that had already been counted was invisible to a sweep
+    that read the pending list.
+
+    The returned tracks come from the `.info.json` the discard leaves behind --
+    the only remaining record of where to fetch them from, since they are not
+    in `pending.json` either.
+
+    Costs one ffprobe per downloaded track per run: about a minute over the
+    whole archive, and it buys a pipeline that repairs itself.
     """
-    discarded = 0
-    for track in pending:
-        path = audio_path(track["id"])
-        if path is not None and not discard_if_short(path):
-            discarded += 1
-    return discarded
+    refetch = []
+    for path in sorted(config.AUDIO_DIR.iterdir()):
+        if path.suffix.lower() not in AUDIO_SUFFIXES or discard_if_short(path):
+            continue
+        info = config.info_json_for(path.stem) or {}
+        if url := info.get("webpage_url"):
+            refetch.append({"id": str(info.get("id", "")), "title": info.get("title"), "url": url})
+    return refetch
 
 
 def main() -> None:
     config.ensure_dirs()
     pending = json.loads(config.PENDING_JSON.read_text(encoding="utf-8"))
 
-    discarded = sweep_short_downloads(pending)
-    if discarded:
-        print(f"discarded {discarded} short download(s) from a previous run", flush=True)
+    refetch = sweep_short_downloads()
+    if refetch:
+        print(f"discarded {len(refetch)} damaged download(s) to fetch again", flush=True)
 
-    todo = [t for t in pending if not already_have(t["id"])]
+    # By id, because a damaged download can also be pending -- the sweep would
+    # otherwise queue it twice and the two fetches would race on one file.
+    todo = list({
+        t["id"]: t for t in [*refetch, *(t for t in pending if not already_have(t["id"]))]
+    }.values())
     print(f"pending {len(pending)}, to download {len(todo)}", flush=True)
 
     done = 0

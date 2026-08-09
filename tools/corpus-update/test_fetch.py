@@ -41,7 +41,11 @@ def download(tmp_path, monkeypatch, stem: str, *, declared: float | None,
         monkeypatch.setattr(config, name, d)
 
     if declared is not None:
-        (audio / f"{stem}.info.json").write_text(json.dumps({"duration": declared}))
+        track_id = stem.rsplit("[", 1)[-1].rstrip("]")
+        (audio / f"{stem}.info.json").write_text(json.dumps({
+            "duration": declared, "id": int(track_id), "title": stem.rsplit(" [", 1)[0],
+            "webpage_url": f"https://soundcloud.com/ipperegrinos/{track_id}",
+        }))
 
     path = audio / f"{stem}.m4a"
     path.write_bytes(b"audio")
@@ -177,19 +181,52 @@ def test_the_sweep_makes_the_fix_retroactive(tmp_path, monkeypatch):
     which only runs after a download -- never sees it. 46 short files sat in
     the work directory exactly that way."""
     whole = download(tmp_path, monkeypatch, "a [1]", declared=3600, measured=3599)
-    short = tmp_path / "audio" / "b [2].m4a"
-    short.write_bytes(b"audio")
-    (tmp_path / "audio" / "b [2].info.json").write_text(json.dumps({"duration": 3600}))
+    short = download(tmp_path, monkeypatch, "b [2]", declared=3600, measured=60)
 
     # One ffprobe answer per file, keyed by name rather than a single constant.
     monkeypatch.setattr(fetch, "measured_duration",
                         lambda p: 3599 if p.name.startswith("a ") else 60)
 
-    pending = [{"id": "1"}, {"id": "2"}]
-    assert fetch.sweep_short_downloads(pending) == 1
+    assert [t["id"] for t in fetch.sweep_short_downloads()] == ["2"]
     assert whole.exists()
     assert not short.exists()
-    assert [t["id"] for t in pending if not fetch.already_have(t["id"])] == ["2"]
+
+
+def test_the_sweep_reaches_a_sermon_the_corpus_already_counts(tmp_path, monkeypatch):
+    """The repair, and why the sweep cannot read `pending.json`.
+
+    `discover` lists what SoundCloud has and the corpus does not, so a sermon
+    already in metadata.csv is never pending -- which is every one of the 35
+    that were live with holes in them. Walking the audio directory instead is
+    what lets a damaged download already accounted for be found at all.
+    """
+    damaged = download(tmp_path, monkeypatch, "counted [7]", declared=3600, measured=3000)
+
+    refetch = fetch.sweep_short_downloads()
+
+    assert not damaged.exists()
+    assert [t["url"] for t in refetch] == ["https://soundcloud.com/ipperegrinos/7"]
+
+
+def test_a_discarded_track_is_named_by_the_sidecar_it_leaves_behind(tmp_path, monkeypatch):
+    """`discard()` removes the media and what was derived from it, never the
+    `.info.json` -- which is the only thing left that says where to fetch it
+    from, since the track is not in `pending.json` either."""
+    download(tmp_path, monkeypatch, "gone [8]", declared=3600, measured=60)
+
+    assert fetch.sweep_short_downloads() == [
+        {"id": "8", "title": "gone", "url": "https://soundcloud.com/ipperegrinos/8"}
+    ]
+    assert (config.AUDIO_DIR / "gone [8].info.json").exists()
+
+
+def test_a_track_without_a_usable_sidecar_is_dropped_not_refetched(tmp_path, monkeypatch):
+    """Nothing to fetch from. Discarding is still right -- the file is damaged
+    -- but there is no URL, so the next `discover` has to find it."""
+    path = download(tmp_path, monkeypatch, "e [5]", declared=None, measured=None)
+
+    assert fetch.sweep_short_downloads() == []
+    assert not path.exists()
 
 
 # --- measuring what is actually in the file ---------------------------------
