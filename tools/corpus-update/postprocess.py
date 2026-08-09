@@ -19,23 +19,33 @@ import clean
 import config
 import spotify_ids
 
-DATE_IN_TITLE_RE = re.compile(r"(\d{2}).+(\d{2}).+(\d{4})")
+# `DD-MM-YYYY`, with any short run of non-digits as the separator so `/` and
+# `-` both work. The two lookarounds are what keep it a date rather than three
+# numbers that happen to be adjacent: without `(?!\d)` the corpus's `20223` and
+# `20245` -- years typed with an extra digit -- read as 2022 and 2024, which is
+# wrong by exactly one year and looks entirely right.
+DATE_IN_TITLE_RE = re.compile(r"(?<!\d)(\d{1,2})\D{1,3}(\d{1,2})\D{1,3}(\d{4})(?!\d)")
 
 
-def resolve_date(text: str, timestamp: int) -> datetime.date:
+def resolve_date(title: str, timestamp: int) -> datetime.date:
     """The sermon's date, from its title when the title is trustworthy.
 
     Titles carry a `DD-MM-YYYY` prefix by convention, but only by convention:
     the corpus contains "05-01-20245", "0223-05-07" and a run of episodes with
-    no date at all. The original took whatever the regex produced and left the
-    column blank when it did not match, which is where the six unusable dates in
-    metadata.csv came from. Here the publication timestamp -- always present,
-    always sane -- backstops both cases, and the plausibility window matches
-    `resolveDate` in backend/src/lib/corpus.ts so the loader never has to.
+    no date at all. The publication timestamp -- always present, always sane --
+    backstops all of them, and the plausibility window matches `resolveDate` in
+    backend/src/lib/corpus.ts so the loader never has to.
+
+    The title alone. This used to search the title and the description
+    concatenated with nothing between them, and a loose `(\\d{2}).+(\\d{2}).+
+    (\\d{4})` over that manufactured dates out of digits that were never one --
+    "2 Reis 21_1-9" and whatever followed it in the description. Three sermons
+    were live under a month nobody preached them in. A wrong date that passes
+    every check is worse than no date, because the fallback is right and free.
     """
     published = datetime.datetime.fromtimestamp(timestamp, datetime.UTC).date()
 
-    match = DATE_IN_TITLE_RE.search(text)
+    match = DATE_IN_TITLE_RE.search(title)
     if match:
         try:
             d, m, y = map(int, match.groups())
@@ -185,7 +195,7 @@ def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | 
         "timestamp": timestamp,
         "sc_suffix_url": info.get("webpage_url_basename") or "",
         "sp_suffix_url": spotify.get(track_id) or "",
-        "date": resolve_date(f"{title}{description}", timestamp).isoformat(),
+        "date": resolve_date(title, timestamp).isoformat(),
         "words": words,
         "sentences": sentences,
         "sent_ratio": sent_ratio,

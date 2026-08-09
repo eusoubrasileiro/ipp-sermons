@@ -80,3 +80,58 @@ def test_resolve_artist_leaves_it_blank_rather_than_guessing():
     info = {"description": "Uma aula por Alguém Que Não Está Na Lista"}
 
     assert postprocess.resolve_artist(info, PREACHERS, FULL_NAMES) is None
+
+
+# --- the sermon's date ------------------------------------------------------
+#
+# Titles carry a DD-MM-YYYY prefix by convention only, so the publication
+# timestamp backstops them. What matters is *when it refuses to believe a
+# title*: a date invented from digits that were never a date is worse than
+# falling back, because it is wrong and plausible at the same time and puts a
+# sermon under the wrong month in /datas with nothing to show for it.
+
+# 2026-07-12; a Sunday, and the date the church actually uploaded that sermon.
+PUBLISHED = 1783868400
+
+
+def test_a_dated_title_is_believed():
+    assert postprocess.resolve_date("27-07-2025 - 2 Reis 10.1-17", PUBLISHED).isoformat() == (
+        "2025-07-27"
+    )
+
+
+def test_a_title_with_no_date_falls_back_to_publication():
+    """The three sermons this fixes were live under a month nobody preached
+    them in: with the description concatenated on, `2 Reis 21_1-9` and the
+    digits after it parsed as a date that passed every plausibility check."""
+    title = "Culto - Rev. Bruno Melo - 2 Reis 21_1-9 - Fizeram Pior"
+    assert postprocess.resolve_date(title, PUBLISHED).isoformat() == "2026-07-12"
+
+
+def test_the_date_is_found_past_a_filename_prefix():
+    """`20251228_001_28-12-2025 - EBD` — the upload tool's own prefix comes
+    first, and reading digits greedily took the date out of that instead."""
+    got = postprocess.resolve_date("20251228_001_28-12-2025 - EBD", PUBLISHED)
+    assert got.isoformat() == "2025-12-28"
+
+
+def test_five_digits_are_not_a_year():
+    """The corpus contains `07-05-20223` and `05-01-20245`. Taking the first
+    four digits of those yields a year that is wrong by one and looks right, so
+    the publication date is the better answer."""
+    assert postprocess.resolve_date("07-05-20223 - Efésios 3.7-8", PUBLISHED).isoformat() == (
+        "2026-07-12"
+    )
+
+
+def test_an_impossible_date_in_a_title_falls_back():
+    assert postprocess.resolve_date("31-02-2025 - Salmos 1", PUBLISHED).isoformat() == "2026-07-12"
+
+
+def test_a_year_outside_the_archive_is_not_a_sermon_date():
+    """Guards against a scripture reference or a quoted year being read as one."""
+    assert postprocess.resolve_date("11-09-1973 - Salmos 1", PUBLISHED).isoformat() == "2026-07-12"
+
+
+def test_slashes_work_as_well_as_dashes():
+    assert postprocess.resolve_date("30/06/2019 - Aula 78", PUBLISHED).isoformat() == "2019-06-30"
