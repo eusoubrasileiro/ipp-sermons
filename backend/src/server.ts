@@ -9,11 +9,13 @@ const { PrismaClient } = pkg;
 
 import { createApp } from "./app.ts";
 import { createOpenRouterEmbeddings } from "./lib/embeddings.ts";
+import { createRateLimiter } from "./lib/rate-limit.ts";
 import { createOpenRouterReranker } from "./lib/rerank.ts";
 
 /**
  * Production entrypoint: wires the real dependencies and serves the built
- * frontend from the same origin, so there is one container and no CORS in prod.
+ * frontend from the same origin, so one container answers both and no request
+ * the site itself makes is ever cross-origin.
  */
 
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -34,7 +36,12 @@ const reranker = rerankDisabled
       onError: (err) => console.warn("[rerank] degraded to RRF order:", err),
     });
 
-const app = createApp({ prisma, embeddings, reranker });
+// Five suggestions an hour from one address. The box has ~2 GB free of 7.8 and
+// this is the only route a visitor can grow the database through; a member with
+// something to say sends one, not five hundred.
+const suggestionLimiter = createRateLimiter({ limit: 5, windowMs: 60 * 60 * 1000 });
+
+const app = createApp({ prisma, embeddings, reranker, suggestionLimiter });
 
 app.use("/*", serveStatic({ root: "./public" }));
 // SPA fallback: any unmatched GET returns the shell so client routing works.

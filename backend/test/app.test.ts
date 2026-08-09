@@ -2,6 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "../src/app.ts";
 import type { EmbeddingsClient } from "../src/lib/embeddings.ts";
+import { createRateLimiter } from "../src/lib/rate-limit.ts";
 import type { Reranker } from "../src/lib/rerank.ts";
 
 /**
@@ -180,6 +181,56 @@ describe("POST /api/suggestion", () => {
   it("rejects an empty suggestion", async () => {
     const app = createApp({ prisma: stubPrisma([]), embeddings: stubEmbeddings() });
     expect((await post(app, "/api/suggestion", { suggestion: " " })).status).toBe(400);
+  });
+
+  it("stops writing once a visitor is over the limit", async () => {
+    // The only unauthenticated write on the site, on a box with ~2 GB free.
+    // Nothing bounded it, and the count is what matters here rather than the
+    // status: a 429 that still inserts protects nothing.
+    const prisma = stubPrisma([]);
+    const app = createApp({
+      prisma,
+      embeddings: stubEmbeddings(),
+      suggestionLimiter: createRateLimiter({ limit: 2, windowMs: 60_000 }),
+    });
+
+    const send = () => post(app, "/api/suggestion", { suggestion: "falta o sermão de Tito 2" });
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+
+    const refused = await send();
+    expect(refused.status).toBe(429);
+    expect(prisma.suggestion.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts the forwarded visitor, not the proxy", async () => {
+    // Every request arrives from Traefik inside the Docker network, so keying
+    // on the socket address would give the whole internet one bucket.
+    const prisma = stubPrisma([]);
+    const app = createApp({
+      prisma,
+      embeddings: stubEmbeddings(),
+      suggestionLimiter: createRateLimiter({ limit: 1, windowMs: 60_000 }),
+    });
+
+    const from = (ip: string) =>
+      app.request("/api/suggestion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Forwarded-For": `${ip}, 10.0.0.2` },
+        body: JSON.stringify({ suggestion: "falta o sermão de Tito 2" }),
+      });
+
+    expect((await from("203.0.113.7")).status).toBe(200);
+    expect((await from("203.0.113.8")).status).toBe(200);
+    expect((await from("203.0.113.7")).status).toBe(429);
+  });
+
+  it("is unlimited when no limiter is wired, so every other test still holds", async () => {
+    const prisma = stubPrisma([]);
+    const app = createApp({ prisma, embeddings: stubEmbeddings() });
+    for (let i = 0; i < 5; i++) {
+      expect((await post(app, "/api/suggestion", { suggestion: "mais um" })).status).toBe(200);
+    }
   });
 });
 

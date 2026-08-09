@@ -13,6 +13,7 @@ import { type BrowseSort, listSermons } from "./lib/browse/list.ts";
 import { filtersFromQuery } from "./lib/browse/query.ts";
 import { DATA_DIR } from "./lib/data-dir.ts";
 import type { EmbeddingsClient } from "./lib/embeddings.ts";
+import { clientKey, type RateLimiter } from "./lib/rate-limit.ts";
 import type { Reranker } from "./lib/rerank.ts";
 import { search } from "./lib/search.ts";
 import { registerSeoRoutes } from "./lib/seo/routes.ts";
@@ -37,6 +38,11 @@ export type AppDeps = {
   publicDir?: string | undefined;
   /** Absolute origin for canonical and Open Graph URLs. */
   siteUrl?: string | undefined;
+  /**
+   * Throttles `POST /api/suggestion`. Optional so a test that is not about the
+   * limit does not have to think about it; `server.ts` always wires one.
+   */
+  suggestionLimiter?: RateLimiter | undefined;
 };
 
 export function createApp(deps: AppDeps): Hono {
@@ -158,7 +164,16 @@ export function createApp(deps: AppDeps): Hono {
     }
   });
 
+  /**
+   * The only write a visitor can make, and so the only route that can grow the
+   * database from outside. The limiter is checked before the body is parsed:
+   * refusing costs nothing that way, which is the point of refusing.
+   */
   app.post("/api/suggestion", async (c) => {
+    if (deps.suggestionLimiter && !deps.suggestionLimiter.take(clientKey(c.req.raw.headers))) {
+      return c.json({ error: "Muitas sugestões. Tente novamente mais tarde." }, 429);
+    }
+
     const body = await c.req.json().catch(() => ({}));
     const parsed = SuggestionRequestSchema.safeParse(body);
     if (!parsed.success) {
