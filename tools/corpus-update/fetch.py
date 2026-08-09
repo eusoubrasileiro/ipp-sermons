@@ -9,6 +9,7 @@ and stays in the work directory forever.
 import json
 import os
 import pathlib
+import statistics
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -41,10 +42,34 @@ def already_have(track_id: str) -> bool:
     return audio_path(track_id) is not None
 
 
-# How much of the sermon has to be in the file. SoundCloud's own duration and
-# the container's disagree by a fraction of a second on a healthy download; the
-# failures were 0.3% to 47%, so anything in between is noise.
-MIN_DOWNLOADED = 0.95
+# How much of the sermon has to be in the file. Measured against the audio that
+# is really there, a whole download matches its declared duration to within one
+# frame, and the smallest real failure -- a single lost 10-second HLS fragment
+# out of a 53-minute sermon -- is already 0.3%. The old tolerance was 5%, which
+# only looked safe because the measurement could not see a hole: both sides of
+# the ratio came out of the same container header.
+MIN_DOWNLOADED = 0.999
+
+
+def content_seconds(stamps: list[float]) -> float | None:
+    """Seconds of audio behind a stream's packet timestamps.
+
+    Deliberately not `stamps[-1]`. A file that lost fragments in the middle
+    still carries timestamps running to the declared end -- the audio simply
+    jumps, and every header keeps reporting the full duration. Counting packets
+    and multiplying by the frame length is what notices the ones that are gone.
+
+    The frame length is taken from the stream rather than assumed, because the
+    archive holds AAC (1024 samples a frame) and one MP3 (1152); the median
+    interval is the frame length by construction, and is immune to the handful
+    of gaps that are the thing being measured.
+    """
+    if len(stamps) < 2:
+        # No interval, so no frame length, so no measurement. Treated the same
+        # as an unreadable file: discard and fetch it again.
+        return None
+    frame = statistics.median(b - a for a, b in zip(stamps, stamps[1:]))
+    return len(stamps) * frame if frame > 0 else None
 
 
 def measured_duration(path: pathlib.Path) -> float | None:
@@ -54,14 +79,19 @@ def measured_duration(path: pathlib.Path) -> float | None:
     media is broken. A missing ffprobe raises FileNotFoundError and is left to
     propagate, so a mis-provisioned machine fails loudly instead of deleting
     the archive one track at a time.
+
+    Packet timestamps rather than `format=duration`: that field is the
+    container's claim about itself, and comparing it to the sidecar compares a
+    claim to the same claim, so a file missing 42 fragments scores a perfect
+    100%. The scan costs about half a second on the longest sermon here.
     """
     try:
         out = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "csv=p=0", str(path)],
-            capture_output=True, text=True, timeout=60, check=True,
+            ["ffprobe", "-v", "error", "-select_streams", "a:0",
+             "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=300, check=True,
         )
-        return float(out.stdout.strip())
+        return content_seconds([float(v) for v in out.stdout.split() if v])
     except (subprocess.SubprocessError, ValueError):
         return None
 
@@ -123,8 +153,14 @@ def discard_if_short(path: pathlib.Path) -> bool:
     return False
 
 
-def fetch(track: dict) -> bool:
-    opts = {
+def download_options() -> dict:
+    """yt-dlp's settings for one track.
+
+    A function rather than a constant because `AUDIO_DIR` is monkeypatched in
+    tests, and because the one setting that matters most here is worth being
+    able to assert on without a network.
+    """
+    return {
         "format": "bestaudio/best",
         "outtmpl": str(config.AUDIO_DIR / config.AUDIO_OUTPUT_TEMPLATE),
         "writeinfojson": True,
@@ -141,12 +177,22 @@ def fetch(track: dict) -> bool:
         "retries": 10,
         "fragment_retries": 10,
         "retry_sleep_functions": {"http": lambda n: min(2**n, 60)},
+        # The default is to skip a fragment that never arrived and write the
+        # rest, which is how 36 of 154 downloads ended up with holes in the
+        # middle -- 52.8 minutes of preaching, none of it visible to anything
+        # downstream, because the container still declared the full duration.
+        # Failing the download instead costs a re-fetch; the alternative costs
+        # a sermon nobody knows is incomplete.
+        "skip_unavailable_fragments": False,
         # SoundCloud hands out opus/m4a already; remuxing would only lose bits
         # and burn CPU that the GPU box needs for transcription.
         "postprocessors": [],
     }
+
+
+def fetch(track: dict) -> bool:
     try:
-        with yt_dlp.YoutubeDL(opts) as ydl:
+        with yt_dlp.YoutubeDL(download_options()) as ydl:
             ydl.download([track["url"]])
         path = audio_path(track["id"])
         return path is not None and discard_if_short(path)

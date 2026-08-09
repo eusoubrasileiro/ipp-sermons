@@ -2,16 +2,27 @@
 
 Same contract as the other tests here: no network, no ffprobe, no yt-dlp call.
 `discard_if_short` is split from the download for exactly that reason -- what it
-measures is injected, so the decision is testable on its own.
+measures is injected, so the decision is testable on its own. The measurement
+itself is split again, into `content_seconds`, which is pure arithmetic over
+packet timestamps and needs no media.
 
 The bug it exists to stop: SoundCloud serves HLS in ~300 fragments and 403s
 under load, and once `fragment_retries` is spent yt-dlp finalises what it has.
 The result is a short file that plays, that `already_have()` accepts, and that
 every later stage treats as the whole sermon. 46 of 151 downloads came back
 that way; nine reached production covering 2-47% of their class.
+
+That was the *visible* half. The other half is a file that is short in the
+middle: yt-dlp skips a fragment it could not fetch and writes the rest, so the
+container still declares the full duration and the audio simply jumps. 36 of
+154 downloads in the archive were like that, 52.8 minutes of preaching gone,
+and every gate passed them -- because the gate compared the header's duration
+against the header's duration.
 """
 
 import json
+
+import pytest
 
 import config
 
@@ -53,14 +64,22 @@ def test_a_short_download_is_deleted_so_the_next_run_refetches(tmp_path, monkeyp
     assert fetch.already_have("2") is False
 
 
-def test_the_tolerance_covers_container_rounding(tmp_path, monkeypatch):
-    """A healthy download disagrees with SoundCloud by a fraction of a second.
-    The real failures were 0.3% to 47%, so the band between is noise."""
-    path = download(tmp_path, monkeypatch, "c [3]", declared=3600, measured=3600 * 0.96)
-    assert fetch.discard_if_short(path) is True
+def test_the_tolerance_is_a_frame_not_a_fragment(tmp_path, monkeypatch):
+    """A whole download measures its declared duration to within a frame.
 
-    short = download(tmp_path, monkeypatch, "d [4]", declared=3600, measured=3600 * 0.94)
-    assert fetch.discard_if_short(short) is False
+    The old tolerance was 5%, which was honest only because the measurement
+    could not see a hole: both sides of the ratio were read out of the same
+    container header, so a damaged file scored 100% and the slack was never
+    tested. Measured against the audio that is actually there, 5% is 2.6
+    minutes of a 53-minute sermon -- and the smallest real failure is one lost
+    10-second fragment, which is 0.3%.
+    """
+    whole = download(tmp_path, monkeypatch, "c [3]", declared=3145, measured=3145.02)
+    assert fetch.discard_if_short(whole) is True
+
+    one_fragment_missing = download(tmp_path, monkeypatch, "d [4]",
+                                    declared=3145, measured=3145 - 10)
+    assert fetch.discard_if_short(one_fragment_missing) is False
 
 
 def test_a_track_with_no_sidecar_is_kept(tmp_path, monkeypatch):
@@ -143,3 +162,74 @@ def test_the_sweep_makes_the_fix_retroactive(tmp_path, monkeypatch):
     assert whole.exists()
     assert not short.exists()
     assert [t["id"] for t in pending if not fetch.already_have(t["id"])] == ["2"]
+
+
+# --- measuring what is actually in the file ---------------------------------
+#
+# `27-07-2025 - 2 Reis 10.1-17 [2139294189]` declared 52.42 minutes and held
+# 117,364 AAC frames -- 45.42 minutes. 17 gaps, every one an exact multiple of
+# ten seconds, 420.0 seconds in total. Ten seconds is the HLS fragment, so 42
+# fragments were missing and yt-dlp wrote the file anyway.
+#
+# Timestamps run to the declared end regardless, which is why the arithmetic
+# has to count packets rather than read the last one.
+
+AAC = 1024 / 44100
+MP3 = 1152 / 44100
+
+# ffprobe prints pts_time to six decimals, which the fixture reproduces. The
+# rounding leaks into the median frame length and scales with packet count: on
+# the longest sermon in the archive it is about a tenth of a second in 52
+# minutes, four orders of magnitude inside the 0.1% the check allows. Asserting
+# to the frame is the honest precision -- demanding more would be testing
+# float arithmetic rather than the measurement.
+FRAME = 0.03
+
+
+def stream(frame: float, count: int, *, hole_after: int = 0, hole: float = 0.0) -> list[float]:
+    """Packet start times, optionally with `hole` seconds missing partway."""
+    stamps, t = [], 0.0
+    for i in range(count):
+        stamps.append(round(t, 6))
+        t += frame + (hole if i + 1 == hole_after else 0.0)
+    return stamps
+
+
+def test_a_whole_stream_measures_its_own_span():
+    stamps = stream(AAC, 1000)
+    assert fetch.content_seconds(stamps) == pytest.approx(1000 * AAC, abs=FRAME)
+
+
+def test_a_hole_costs_exactly_what_it_swallowed():
+    """The regression. Both streams end at the same timestamp -- the damaged one
+    just has fewer packets getting there, and the container reports the end."""
+    whole = stream(AAC, 1000)
+    damaged = stream(AAC, 1000 - 431, hole_after=200, hole=431 * AAC)
+
+    assert damaged[-1] == pytest.approx(whole[-1], abs=FRAME)
+    assert fetch.content_seconds(damaged) == pytest.approx(
+        fetch.content_seconds(whole) - 431 * AAC, abs=FRAME
+    )
+
+
+def test_the_frame_length_is_read_from_the_stream_not_assumed():
+    """The archive is 154 m4a and one mp3, which pack 1024 and 1152 samples per
+    frame. Hard-coding either would misread the other by 12%."""
+    assert fetch.content_seconds(stream(MP3, 500)) == pytest.approx(500 * MP3, abs=FRAME)
+
+
+def test_a_stream_too_short_to_have_a_frame_length_is_no_measurement():
+    """One packet gives no interval to take the frame length from. `None` is the
+    same verdict as an unreadable file: discard and fetch it again."""
+    assert fetch.content_seconds([0.0]) is None
+    assert fetch.content_seconds([]) is None
+
+
+# --- refusing the damage at the source --------------------------------------
+
+
+def test_a_fragment_yt_dlp_cannot_fetch_aborts_the_download():
+    """yt-dlp skips unavailable fragments by default and finalises what it has,
+    which is the file with the holes in it. Detection is the second line; this
+    is the first, and it is one option."""
+    assert fetch.download_options()["skip_unavailable_fragments"] is False

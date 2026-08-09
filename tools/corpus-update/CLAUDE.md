@@ -1,8 +1,16 @@
 # CLAUDE.md — tools/corpus-update
 
-Supplements the root `CLAUDE.md`. Read `README.md` in this directory before
-changing anything here — it is the authority on the pipeline and its failure
-modes, and is not repeated here.
+Supplements the root `CLAUDE.md`. The pipeline's reasoning lives in the module
+and function docstrings, at the point of each decision — read those. Only rules
+that no single file owns are repeated here.
+
+- **A short transcript is evidence about the audio first.** `coverage()` fails
+  in `transcribe.py`, but the usual cause is in `fetch.py`: a download that lost
+  HLS fragments is transcribed completely and still reports 86%, because the
+  denominator is the sermon's declared length. That looks like a deterministic
+  model failure and is not one. Run `content_seconds()` against the sidecar
+  before touching the VAD, the batch size or `MIN_COVERAGE` — half a second,
+  against twenty minutes of GPU for a re-run that fails identically.
 
 - **Interpreter is `${IPP_VENV_DIR:-/mnt/Data/venv/ipp-sermons}/bin/python`**,
   never system `python3`. This overrides the user-level rule for this directory:
