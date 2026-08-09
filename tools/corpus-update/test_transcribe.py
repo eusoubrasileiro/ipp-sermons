@@ -267,9 +267,13 @@ def collected(tmp_path, monkeypatch, *specs):
 
 
 def test_a_peer_transcript_of_truncated_audio_is_discarded(tmp_path, monkeypatch):
+    """`a [1]` surviving is the other half: the sweep walks the whole alignment
+    directory, so it runs over everything `transcribe()` already passed on this
+    box and must be a no-op on all of it."""
     collected(tmp_path, monkeypatch, ("a [1]", 3600, 3580), ("b [2]", 3600, 700))
     assert transcribe.discard_incomplete() == ["b [2]"]
     assert (config.RAW_DIR / "a [1].txt").exists()
+    assert (config.ALIGNMENT_DIR / "a [1].gz").exists()
     assert not (config.RAW_DIR / "b [2].txt").exists()
     assert not (config.ALIGNMENT_DIR / "b [2].gz").exists()
 
@@ -289,9 +293,3 @@ def test_an_alignment_with_no_sidecar_is_left_alone(tmp_path, monkeypatch):
     collected(tmp_path, monkeypatch, ("c [3]", None, 10))
     assert transcribe.discard_incomplete() == []
     assert (config.ALIGNMENT_DIR / "c [3].gz").exists()
-
-
-def test_it_can_be_narrowed_to_what_a_collect_just_brought_home(tmp_path, monkeypatch):
-    collected(tmp_path, monkeypatch, ("b [2]", 3600, 700), ("d [4]", 3600, 700))
-    assert transcribe.discard_incomplete(stems=["d [4]"]) == ["d [4]"]
-    assert (config.ALIGNMENT_DIR / "b [2].gz").exists()

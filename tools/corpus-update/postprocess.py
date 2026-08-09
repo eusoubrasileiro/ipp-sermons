@@ -19,9 +19,6 @@ import clean
 import config
 import spotify_ids
 
-# Titles are `<title> [<soundcloud id>]` on disk; the corpus stores the title.
-STEM_ID_RE = re.compile(r"^(?P<title>.*) \[(?P<id>\d+)\]$")
-
 DATE_IN_TITLE_RE = re.compile(r"(\d{2}).+(\d{2}).+(\d{4})")
 
 
@@ -111,12 +108,10 @@ def resolve_artist(info: dict, preachers: list[str], full_names: list[str]) -> s
     return None
 
 
-info_json_for = config.info_json_for
-
-
 def audio_file_for(stem: str) -> str | None:
+    """The `audio` column: the downloaded file's own name, as yt-dlp wrote it."""
     for p in config.AUDIO_DIR.glob(f"{glob_escape(stem)}.*"):
-        if p.suffix.lower() in {".opus", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".webm", ".flac"}:
+        if p.suffix.lower() in config.AUDIO_SUFFIXES:
             return p.name
     return None
 
@@ -132,9 +127,9 @@ def done_ids() -> set[str]:
     `str()` is load-bearing. `build_row` writes the id as an int, and must keep
     doing so -- append.py's DTYPES are what stop a new CSV line from formatting
     differently to the 455 already in metadata.csv. The comparison side is the
-    regex capture in `pending`, which is always a string, so the conversion has
-    to happen here. It did not, and `"111" not in {111}` is always true: every
-    re-run re-cleaned every raw transcript and rewrote every corpus .txt.
+    regex capture in `pending`, which is always a string, and `"111" not in
+    {111}` is always true: without the conversion this stage is never resumable
+    and every re-run re-cleans every transcript and rewrites every corpus .txt.
     """
     if not config.ROWS_JSONL.exists():
         return set()
@@ -144,17 +139,17 @@ def done_ids() -> set[str]:
 
 def pending(raw_paths: list[pathlib.Path], have: set[str]) -> list[pathlib.Path]:
     """The raw transcripts still to clean, in the order given."""
-    return [p for p in raw_paths if (m := STEM_ID_RE.match(p.stem)) and m["id"] not in have]
+    return [p for p in raw_paths if (m := config.STEM_ID_RE.match(p.stem)) and m["id"] not in have]
 
 
 def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | None:
-    match = STEM_ID_RE.match(raw_path.stem)
+    match = config.STEM_ID_RE.match(raw_path.stem)
     if not match:
         print(f"  skipping {raw_path.stem}: no soundcloud id in filename", flush=True)
         return None
     title, track_id = match["title"], match["id"]
 
-    info = info_json_for(raw_path.stem)
+    info = config.info_json_for(raw_path.stem)
     if info is None:
         print(f"  skipping {raw_path.stem}: no .info.json", flush=True)
         return None

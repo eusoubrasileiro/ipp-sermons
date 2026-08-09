@@ -93,11 +93,10 @@ def coverage(gz: pathlib.Path, wav: pathlib.Path) -> float:
     exits 0. Nothing downstream would notice: a fifth of a sermon scores fine
     and indexes fine. Length is the only thing that gives it away.
 
-    The denominator is what SoundCloud says the sermon lasts, NOT the WAV. It
-    used to be the WAV's own byte length, which made this guard circular: hand
-    it a truncated download and WhisperX transcribes all of it, so
-    `segments[-1].end / duration` is 1.0 and a 1-minute file passes as a
-    complete 64.7-minute class. Nine did, and reached production.
+    The denominator is what SoundCloud says the sermon lasts, NOT the WAV.
+    Measuring the WAV makes this guard circular: hand it a truncated download
+    and WhisperX transcribes all of it, so `segments[-1].end / duration` is 1.0
+    and a 1-minute file passes as a complete 64.7-minute class.
 
     Falls back to measuring the WAV only when there is no sidecar to ask -- a
     peer transcribing handed-over audio may not have one, and refusing there
@@ -190,19 +189,21 @@ def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
     return False
 
 
-def discard_incomplete(stems: list[str] | None = None) -> list[str]:
+def discard_incomplete() -> list[str]:
     """Deletes raw/alignment pairs that do not cover their sermon. Returns them.
 
-    `coverage()` only ever ran inside `transcribe()`, which is the local path.
-    Transcripts arriving from a peer through `peer.sh collect` bypassed it
-    entirely -- and the peer cannot check for itself, because `dispatch` ships
-    audio without the `.info.json` that says how long the sermon is.
+    `coverage()` only ever runs inside `transcribe()`, which is the local path.
+    Transcripts arriving from a peer through `peer.sh collect` bypass it, and
+    the peer cannot check for itself: `dispatch` ships audio without the
+    `.info.json` that says how long the sermon is, so `coverage` there falls
+    back to measuring the .wav and truncated audio validates against itself.
 
-    That gap let a peer spend a night transcribing 27 truncated downloads and
-    hand back 27 well-formed, useless transcripts. Their coverage tracked the
-    fraction of audio that had downloaded almost exactly 1:1, so this is the
-    same test, applied where every transcript passes regardless of which
-    machine produced it.
+    This is the same test applied where every transcript passes regardless of
+    which machine produced it. It walks the whole alignment directory rather
+    than what a collect just brought home, because a locally produced
+    transcript has already passed exactly this check and re-running it is a
+    gzip read -- cheap enough that having one answer for the whole directory is
+    worth more than narrowing it.
 
     Deleting rather than quarantining keeps one meaning for "a raw transcript
     exists": `pending_audio()` reads that directory to decide what is left to
@@ -210,8 +211,6 @@ def discard_incomplete(stems: list[str] | None = None) -> list[str]:
     """
     removed = []
     for gz in sorted(config.ALIGNMENT_DIR.glob("*.gz")):
-        if stems is not None and gz.stem not in stems:
-            continue
         # No sidecar means no sermon length to judge against, and the .wav that
         # `coverage` would fall back to was deleted once transcription finished.
         if config.declared_duration(gz.stem) is None:

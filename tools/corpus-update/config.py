@@ -9,6 +9,7 @@ and the score cutoff all have to match, or new rows stop being comparable to the
 import json
 import os
 import pathlib
+import re
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 DATA_DIR = REPO_ROOT / "data"
@@ -46,6 +47,13 @@ AUDIO_OUTPUT_TEMPLATE = "%(title)s [%(id)s].%(ext)s"
 # have to install yt-dlp to import the constant.
 AUDIO_SUFFIXES = {".opus", ".m4a", ".mp3", ".ogg", ".wav", ".aac", ".webm", ".flac"}
 
+# Every file the pipeline makes is named for the yt-dlp stem `<title> [<id>]`,
+# and every stage that has to get back from a file to a sermon parses it. One
+# definition, for the same reason as AUDIO_SUFFIXES: fetch keys `rows.jsonl` on
+# the id and postprocess keys the corpus on the title, and if the two ever
+# disagree about what a stem looks like, a discarded download keeps its row.
+STEM_ID_RE = re.compile(r"^(?P<title>.*) \[(?P<id>\d+)\]$")
+
 
 def info_json_for(stem: str) -> dict | None:
     """yt-dlp's sidecar for a downloaded track, or None if it never landed.
@@ -54,9 +62,10 @@ def info_json_for(stem: str) -> dict | None:
     postprocess all need it, and transcribe must not import fetch.
 
     `duration` in this file is what SoundCloud says the sermon is, which makes
-    it the only trustworthy denominator in the pipeline. Measuring the audio on
-    disk instead is how a 1-minute download of a 64.7-minute class passed the
-    coverage guard at 100% and reached production.
+    it the only trustworthy denominator in the pipeline. Every other number
+    available -- the container header, the WAV's byte length -- is derived from
+    the download, so measuring against one of those asks a damaged file whether
+    it is damaged and it always answers no.
     """
     path = AUDIO_DIR / f"{stem}.info.json"
     if not path.exists():
