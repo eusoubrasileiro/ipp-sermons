@@ -21,6 +21,9 @@ against the header's duration.
 """
 
 import json
+import pathlib
+import threading
+import time
 
 import pytest
 
@@ -35,7 +38,7 @@ def download(tmp_path, monkeypatch, stem: str, *, declared: float | None,
     audio = tmp_path / "audio"
     audio.mkdir(exist_ok=True)
     monkeypatch.setattr(config, "AUDIO_DIR", audio)
-    for name in ("RAW_DIR", "ALIGNMENT_DIR"):
+    for name in ("RAW_DIR", "ALIGNMENT_DIR", "WAV_DIR"):
         d = tmp_path / name.split("_")[0].lower()
         d.mkdir(exist_ok=True)
         monkeypatch.setattr(config, name, d)
@@ -153,6 +156,80 @@ def test_discarding_the_audio_also_drops_the_row_built_from_it(tmp_path, monkeyp
     assert config.ROWS_JSONL.read_text(encoding="utf-8") == '{"id": 11, "words": 6000}\n'
 
 
+def test_discarding_the_audio_also_drops_the_wav_converted_from_it(tmp_path, monkeypatch):
+    """The fourth derived artifact, and the one that survives a re-download.
+
+    `to_wav()` returns an existing `wav/<stem>.wav` without looking at the
+    audio, and the stem does not change when the track is fetched again. An
+    interrupted transcribe leaves one behind -- it converts the next sermon
+    while the current one is on the GPU -- so a repaired download can be
+    transcribed from the damaged audio's wav and come out short a second time.
+    A hole small enough to leave 90% of the sermon then passes MIN_COVERAGE and
+    the corpus keeps numbers measured off audio that no longer exists.
+    """
+    path = download(tmp_path, monkeypatch, "m [13]", declared=3600, measured=60)
+    wav = config.WAV_DIR / "m [13].wav"
+    wav.write_bytes(b"16 kHz mono of half a sermon")
+
+    assert fetch.discard_if_short(path) is False
+    assert not wav.exists()
+
+
+def test_a_whole_download_keeps_its_wav(tmp_path, monkeypatch):
+    """The sweep runs over every downloaded track on every run, and the wav is
+    what the next transcribe resumes from."""
+    path = download(tmp_path, monkeypatch, "n [14]", declared=3600, measured=3599)
+    wav = config.WAV_DIR / "n [14].wav"
+    wav.write_bytes(b"16 kHz mono of a whole sermon")
+
+    assert fetch.discard_if_short(path) is True
+    assert wav.exists()
+
+
+def test_two_downloads_discarded_at_once_both_leave_rows_jsonl(tmp_path, monkeypatch):
+    """`forget_row` is a read-modify-write, and `fetch` runs it from a pool.
+
+    Two damaged downloads finishing together is the ordinary case on the bad
+    SoundCloud day that produces them. Without serialisation the second
+    discard's rewrite lands inside the first one's window and is overwritten,
+    so the row stays in `rows.jsonl` -- and `postprocess` then skips the sermon
+    forever, leaving `append` carrying the numbers from the damaged audio. That
+    is the failure `discard()` exists to prevent, reintroduced by concurrency.
+    """
+    monkeypatch.setattr(config, "ROWS_JSONL", tmp_path / "rows.jsonl")
+    config.ROWS_JSONL.write_text('{"id": 1}\n{"id": 2}\n{"id": 3}\n', encoding="utf-8")
+
+    # Hold the first caller open between its read and its write, so the second
+    # one has the whole window to itself. Under a lock the second cannot get in
+    # at all, the event is never set, and the wait simply times out.
+    reads: list = []
+    second_done = threading.Event()
+    read_text = pathlib.Path.read_text
+
+    def wedged(self, *args, **kwargs):
+        text = read_text(self, *args, **kwargs)
+        if self == config.ROWS_JSONL:
+            reads.append(self)
+            if len(reads) == 1:
+                second_done.wait(timeout=0.25)
+        return text
+
+    monkeypatch.setattr(pathlib.Path, "read_text", wedged)
+
+    first = threading.Thread(target=fetch.forget_row, args=("a [1]",))
+    first.start()
+    while not reads:  # the window is only a window once the first caller is in it
+        time.sleep(0.001)
+    second = threading.Thread(
+        target=lambda: (fetch.forget_row("b [2]"), second_done.set())
+    )
+    second.start()
+    first.join()
+    second.join()
+
+    assert read_text(config.ROWS_JSONL, encoding="utf-8") == '{"id": 3}\n'
+
+
 def test_discarding_a_track_never_processed_leaves_the_rows_alone(tmp_path, monkeypatch):
     path = download(tmp_path, monkeypatch, "k [11]", declared=3600, measured=60)
     monkeypatch.setattr(config, "ROWS_JSONL", tmp_path / "rows.jsonl")
@@ -240,6 +317,23 @@ def test_a_sidecar_left_without_its_audio_is_fetched_again(tmp_path, monkeypatch
 def test_a_sidecar_whose_audio_is_present_is_not_fetched_again(tmp_path, monkeypatch):
     download(tmp_path, monkeypatch, "here [13]", declared=3600, measured=3599)
     assert fetch.orphaned_sidecars() == []
+
+
+def test_a_sermon_the_sweep_just_discarded_is_not_also_an_orphan(tmp_path, monkeypatch):
+    """`discard()` keeps the sidecar, so every file the sweep throws away is a
+    sidecar without audio a moment later.
+
+    Both lists then name it, and `main` prints the orphan count as its own
+    line. That line is the only warning that a repair failed and a sermon the
+    corpus still counts has nothing left to fetch from; inflating it by every
+    successful discard is what makes it unreadable.
+    """
+    download(tmp_path, monkeypatch, "damaged [15]", declared=3600, measured=60)
+
+    refetch = fetch.sweep_short_downloads()
+
+    assert [t["id"] for t in refetch] == ["15"]
+    assert fetch.orphaned_sidecars(skip={t["id"] for t in refetch}) == []
 
 
 def test_a_track_without_a_usable_sidecar_is_dropped_not_refetched(tmp_path, monkeypatch):

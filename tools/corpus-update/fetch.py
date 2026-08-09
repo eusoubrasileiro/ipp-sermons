@@ -9,9 +9,9 @@ and stays in the work directory forever.
 import json
 import os
 import pathlib
-import re
 import statistics
 import subprocess
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import yt_dlp
@@ -19,11 +19,6 @@ import yt_dlp
 import config
 
 WORKERS = int(os.environ.get("IPP_FETCH_WORKERS", "2"))
-
-
-# Lives in config so that transcribe.py can find audio without importing this
-# module, which would drag yt-dlp onto a machine that only ever transcribes.
-AUDIO_SUFFIXES = config.AUDIO_SUFFIXES
 
 
 def audio_path(track_id: str) -> "pathlib.Path | None":
@@ -34,7 +29,7 @@ def audio_path(track_id: str) -> "pathlib.Path | None":
     proves nothing. Only a real audio suffix counts as done.
     """
     for p in config.AUDIO_DIR.glob(f"*[[]{track_id}[]].*"):
-        if p.suffix.lower() in AUDIO_SUFFIXES:
+        if p.suffix.lower() in config.AUDIO_SUFFIXES:
             return p
     return None
 
@@ -78,13 +73,13 @@ def parse_pts(stdout: str) -> list[float]:
 
     One field per line, taken as the first one, because `-of csv=p=0` writes a
     trailing separator for some codecs and not others -- MP3 gives `0.000000,`
-    where AAC gives `0.000000`. Splitting the whole output on whitespace turns
-    that comma into part of the number, `float()` raises, and the caller reads a
-    raised parse as ffprobe refusing the stream, which discards the audio. That
-    deleted the one healthy MP3 in the archive, repeatedly.
+    where AAC gives `0.000000`. Taking the whole field turns that comma into
+    part of the number, `float()` raises, and the caller reads a raised parse as
+    ffprobe refusing the stream -- so a formatting quirk of the probe deletes a
+    healthy sermon, which is what happened to the archive's one MP3.
 
     A line that is not a number at all still raises, which is deliberate: that
-    is the verdict the four MP4s with unusable headers were caught by.
+    is the verdict an unusable MP4 header is caught by.
     """
     return [float(line.split(",", 1)[0]) for line in stdout.splitlines() if line.strip()]
 
@@ -113,41 +108,57 @@ def measured_duration(path: pathlib.Path) -> float | None:
         return None
 
 
-STEM_ID_RE = re.compile(r"^.* \[(?P<id>\d+)\]$")
+# `forget_row` is a read-modify-write of one file and `fetch` runs from a pool,
+# so two damaged downloads finishing together would each rewrite what the other
+# read: one row survives its own discard and the sermon is never re-cleaned.
+_ROWS_LOCK = threading.Lock()
 
 
 def forget_row(stem: str) -> None:
     """Drop this sermon's line from rows.jsonl, if it got that far.
 
-    Three stages each keep their own record of what is done, and every one of
+    Four stages each keep their own record of what is done, and every one of
     them is keyed by something a re-download does not change. `rows.jsonl` is
     postprocess's, so a sermon left in it is never re-cleaned however many
     times its audio is fetched again -- and the corpus keeps the word count and
     score measured off the damaged file.
     """
-    match = STEM_ID_RE.match(stem)
-    if not match or not config.ROWS_JSONL.exists():
+    match = config.STEM_ID_RE.match(stem)
+    if not match:
         return
-    kept = [
-        line for line in config.ROWS_JSONL.read_text(encoding="utf-8").splitlines()
-        if line.strip() and str(json.loads(line)["id"]) != match["id"]
-    ]
-    config.ROWS_JSONL.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8")
+    with _ROWS_LOCK:
+        if not config.ROWS_JSONL.exists():
+            return
+        kept = [
+            line for line in config.ROWS_JSONL.read_text(encoding="utf-8").splitlines()
+            if line.strip() and str(json.loads(line)["id"]) != match["id"]
+        ]
+        config.ROWS_JSONL.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8")
 
 
 def discard(path: pathlib.Path) -> None:
     """Remove a download and everything derived from it.
 
-    Deleting the audio alone is only part of "fetch this again". Work is keyed
-    by stem, and re-downloading does not change the stem, so `pending_audio()`
-    in transcribe.py goes on seeing `raw/<stem>.txt` and calls the sermon done
-    -- the track comes back whole and is then skipped forever, still carrying
-    the transcript of the truncated version. Clearing the work directory by
-    hand was the only cure, and it is what the twelve repaired sermons needed.
+    Deleting the audio alone is only part of "fetch this again". Every later
+    stage is keyed by the stem, and re-downloading does not change the stem, so
+    each of the four derived artifacts left behind makes some stage call the
+    sermon done and skip the repaired audio for good:
+
+      raw/<stem>.txt        `pending_audio()` never transcribes it again
+      alignment/<stem>.gz   the score stays the damaged file's
+      rows.jsonl            `postprocess` never re-cleans it
+      wav/<stem>.wav        `to_wav()` reuses it, so the new audio is never read
+
+    The wav is the quiet one. It only exists between runs -- transcribe deletes
+    it when a sermon finishes and converts the next one ahead of time, so an
+    interrupted run leaves one or two behind -- and a hole small enough to
+    leave 90% of the sermon passes MIN_COVERAGE on the second pass exactly as
+    it did on the first.
     """
     path.unlink(missing_ok=True)
     (config.RAW_DIR / f"{path.stem}.txt").unlink(missing_ok=True)
     (config.ALIGNMENT_DIR / f"{path.stem}.gz").unlink(missing_ok=True)
+    (config.WAV_DIR / f"{path.stem}.wav").unlink(missing_ok=True)
     forget_row(path.stem)
 
 
@@ -157,8 +168,8 @@ def discard_if_short(path: pathlib.Path) -> bool:
     SoundCloud serves HLS in ~300 fragments and 403s under load. Once
     `fragment_retries` is spent yt-dlp finalises what it has: a short file that
     plays, that `already_have()` accepts, and that every later stage treats as
-    the sermon. 46 of 151 downloads came back this way, nine of them reaching
-    production as transcripts covering 2-47% of the class.
+    the sermon. It is not a rare event and cannot be treated as one: 46 of 151
+    downloads in one backlog came back short.
 
     Discarding rather than flagging is deliberate -- it is what makes the next
     run fetch it again, since `already_have()` is the only record of what is
@@ -244,17 +255,15 @@ def fetch(track: dict) -> bool:
 def sweep_short_downloads() -> list[dict]:
     """Re-checks every download on disk, discarding and returning the damaged.
 
-    Without this the fix is not retroactive: `already_have()` accepts any file
-    with an audio suffix, so `main` never asks for a track it has, and the
-    completeness check in `fetch` -- which only runs after a download -- never
-    sees it. 46 short files sat in the work directory that way, and the only
-    thing that would have re-fetched them was somebody deleting them by hand.
+    Without this the completeness check is not retroactive: `already_have()`
+    accepts any file with an audio suffix, so `main` never asks for a track it
+    has, and the check in `fetch` only runs after a download. Damage that
+    predates the check would sit in the work directory until somebody deleted
+    the files by hand.
 
     The whole directory rather than `pending.json`, because `discover` lists
     what SoundCloud has and the corpus does not: a sermon already in
-    metadata.csv is never pending, which is exactly the case a repair is. Every
-    damaged download that had already been counted was invisible to a sweep
-    that read the pending list.
+    metadata.csv is never pending, which is exactly the case a repair is.
 
     The returned tracks come from the `.info.json` the discard leaves behind --
     the only remaining record of where to fetch them from, since they are not
@@ -265,7 +274,7 @@ def sweep_short_downloads() -> list[dict]:
     """
     refetch = []
     for path in sorted(config.AUDIO_DIR.iterdir()):
-        if path.suffix.lower() not in AUDIO_SUFFIXES or discard_if_short(path):
+        if path.suffix.lower() not in config.AUDIO_SUFFIXES or discard_if_short(path):
             continue
         if track := track_from_sidecar(path.stem):
             refetch.append(track)
@@ -284,21 +293,25 @@ def track_from_sidecar(stem: str) -> dict | None:
     return {"id": str(info.get("id", "")), "title": info.get("title"), "url": url} if url else None
 
 
-def orphaned_sidecars() -> list[dict]:
+def orphaned_sidecars(skip: "set[str] | None" = None) -> list[dict]:
     """Tracks whose sidecar is on disk and whose audio is not.
 
     Where a failed repair goes to die. The sweep discards the damaged file, the
     re-fetch fails, and this is what is left. `discover` will not list the track
     -- it builds from what the corpus lacks, and the corpus counts this sermon
     -- and `sweep_short_downloads` walks audio files, of which there is now
-    none. So nothing asks for it again, and the sermon is quietly gone. One had
-    been for months before anyone looked.
+    none. So nothing asks for it again, and the sermon is quietly gone.
+
+    `skip` is the ids the sweep has just discarded in this same run. They match
+    the description exactly -- `discard()` keeps the sidecar -- and are already
+    queued, so counting them here would bury the one case this reports in a
+    number that tracks how bad the last download run was.
     """
     orphans = []
     for sidecar in sorted(config.AUDIO_DIR.glob("*.info.json")):
         stem = sidecar.name[: -len(".info.json")]
         track = track_from_sidecar(stem)
-        if track and not already_have(track["id"]):
+        if track and track["id"] not in (skip or ()) and not already_have(track["id"]):
             orphans.append(track)
     return orphans
 
@@ -311,7 +324,7 @@ def main() -> None:
     if refetch:
         print(f"discarded {len(refetch)} damaged download(s) to fetch again", flush=True)
 
-    orphans = orphaned_sidecars()
+    orphans = orphaned_sidecars(skip={t["id"] for t in refetch})
     if orphans:
         print(f"{len(orphans)} sermon(s) have a sidecar but no audio; fetching again", flush=True)
     refetch += orphans
