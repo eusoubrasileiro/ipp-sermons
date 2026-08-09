@@ -1,9 +1,5 @@
 {
   "description": "Golden query set for the IPP sermon corpus. Each query names the sermon ids a good result list must surface. Anchored on real sermons in the indexed corpus, not invented ones. This is what proves the API-only rewrite retrieves as well as the GPU system it replaces.",
-  "corpus": {
-    "sermons": 455,
-    "chunks": 19953
-  },
   "recallAt": 10,
   "queries": [
     {
