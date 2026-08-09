@@ -73,6 +73,22 @@ def content_seconds(stamps: list[float]) -> float | None:
     return len(stamps) * frame if frame > 0 else None
 
 
+def parse_pts(stdout: str) -> list[float]:
+    """The packet timestamps in ffprobe's csv output.
+
+    One field per line, taken as the first one, because `-of csv=p=0` writes a
+    trailing separator for some codecs and not others -- MP3 gives `0.000000,`
+    where AAC gives `0.000000`. Splitting the whole output on whitespace turns
+    that comma into part of the number, `float()` raises, and the caller reads a
+    raised parse as ffprobe refusing the stream, which discards the audio. That
+    deleted the one healthy MP3 in the archive, repeatedly.
+
+    A line that is not a number at all still raises, which is deliberate: that
+    is the verdict the four MP4s with unusable headers were caught by.
+    """
+    return [float(line.split(",", 1)[0]) for line in stdout.splitlines() if line.strip()]
+
+
 def measured_duration(path: pathlib.Path) -> float | None:
     """Seconds of audio in the file, or None when ffprobe cannot read it.
 
@@ -92,7 +108,7 @@ def measured_duration(path: pathlib.Path) -> float | None:
              "-show_entries", "packet=pts_time", "-of", "csv=p=0", str(path)],
             capture_output=True, text=True, timeout=300, check=True,
         )
-        return content_seconds([float(v) for v in out.stdout.split() if v])
+        return content_seconds(parse_pts(out.stdout))
     except (subprocess.SubprocessError, ValueError):
         return None
 

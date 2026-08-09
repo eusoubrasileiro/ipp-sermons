@@ -305,6 +305,29 @@ def test_the_frame_length_is_read_from_the_stream_not_assumed():
     assert fetch.content_seconds(stream(MP3, 500)) == pytest.approx(500 * MP3, abs=FRAME)
 
 
+def test_a_trailing_separator_does_not_condemn_the_file():
+    """ffprobe's csv writer emits `0.000000,` for MP3 and a bare `0.000000` for
+    AAC -- one field asked for, two fields written.
+
+    Parsing that with `float()` raises, and the caller reads a raised parse as
+    "ffprobe refused this stream", which means *discard the audio*. So a
+    formatting quirk in the probe deletes a healthy sermon. The archive has one
+    MP3 in it, and this is exactly what happened to it.
+    """
+    assert fetch.parse_pts("0.000000,\n0.026122,\n0.052245,\n") == [0.0, 0.026122, 0.052245]
+
+
+def test_the_usual_shape_still_parses():
+    assert fetch.parse_pts("0.000000\n0.023220\n") == [0.0, 0.02322]
+
+
+def test_output_that_is_not_timestamps_at_all_is_no_measurement():
+    """A raised parse has to stay a verdict for genuine garbage -- it is how the
+    four MP4s with unusable headers were caught."""
+    with pytest.raises(ValueError):
+        fetch.parse_pts("N/A\nN/A\n")
+
+
 def test_a_stream_too_short_to_have_a_frame_length_is_no_measurement():
     """One packet gives no interval to take the frame length from. `None` is the
     same verdict as an unreadable file: discard and fetch it again."""
