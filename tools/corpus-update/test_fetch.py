@@ -220,6 +220,28 @@ def test_a_discarded_track_is_named_by_the_sidecar_it_leaves_behind(tmp_path, mo
     assert (config.AUDIO_DIR / "gone [8].info.json").exists()
 
 
+def test_a_sidecar_left_without_its_audio_is_fetched_again(tmp_path, monkeypatch):
+    """Where a failed repair goes to die.
+
+    The sweep discards the damaged file, the re-fetch fails, and what is left is
+    the sidecar and nothing else. `discover` will not list the track -- the
+    corpus counts this sermon -- and the sweep walks audio files, of which there
+    is now none. Without this, the sermon is simply gone, quietly, and one had
+    been for months before anyone looked.
+    """
+    path = download(tmp_path, monkeypatch, "lost [12]", declared=3600, measured=3599)
+    path.unlink()
+
+    assert fetch.orphaned_sidecars() == [
+        {"id": "12", "title": "lost", "url": "https://soundcloud.com/ipperegrinos/12"}
+    ]
+
+
+def test_a_sidecar_whose_audio_is_present_is_not_fetched_again(tmp_path, monkeypatch):
+    download(tmp_path, monkeypatch, "here [13]", declared=3600, measured=3599)
+    assert fetch.orphaned_sidecars() == []
+
+
 def test_a_track_without_a_usable_sidecar_is_dropped_not_refetched(tmp_path, monkeypatch):
     """Nothing to fetch from. Discarding is still right -- the file is damaged
     -- but there is no URL, so the next `discover` has to find it."""

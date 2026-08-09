@@ -251,10 +251,40 @@ def sweep_short_downloads() -> list[dict]:
     for path in sorted(config.AUDIO_DIR.iterdir()):
         if path.suffix.lower() not in AUDIO_SUFFIXES or discard_if_short(path):
             continue
-        info = config.info_json_for(path.stem) or {}
-        if url := info.get("webpage_url"):
-            refetch.append({"id": str(info.get("id", "")), "title": info.get("title"), "url": url})
+        if track := track_from_sidecar(path.stem):
+            refetch.append(track)
     return refetch
+
+
+def track_from_sidecar(stem: str) -> dict | None:
+    """What `discover` would have said about this track, read off its sidecar.
+
+    yt-dlp writes the `.info.json` before the media and `discard()` never
+    removes it, so it outlives every failure and is the only thing left saying
+    where the audio came from.
+    """
+    info = config.info_json_for(stem) or {}
+    url = info.get("webpage_url")
+    return {"id": str(info.get("id", "")), "title": info.get("title"), "url": url} if url else None
+
+
+def orphaned_sidecars() -> list[dict]:
+    """Tracks whose sidecar is on disk and whose audio is not.
+
+    Where a failed repair goes to die. The sweep discards the damaged file, the
+    re-fetch fails, and this is what is left. `discover` will not list the track
+    -- it builds from what the corpus lacks, and the corpus counts this sermon
+    -- and `sweep_short_downloads` walks audio files, of which there is now
+    none. So nothing asks for it again, and the sermon is quietly gone. One had
+    been for months before anyone looked.
+    """
+    orphans = []
+    for sidecar in sorted(config.AUDIO_DIR.glob("*.info.json")):
+        stem = sidecar.name[: -len(".info.json")]
+        track = track_from_sidecar(stem)
+        if track and not already_have(track["id"]):
+            orphans.append(track)
+    return orphans
 
 
 def main() -> None:
@@ -264,6 +294,11 @@ def main() -> None:
     refetch = sweep_short_downloads()
     if refetch:
         print(f"discarded {len(refetch)} damaged download(s) to fetch again", flush=True)
+
+    orphans = orphaned_sidecars()
+    if orphans:
+        print(f"{len(orphans)} sermon(s) have a sidecar but no audio; fetching again", flush=True)
+    refetch += orphans
 
     # By id, because a damaged download can also be pending -- the sweep would
     # otherwise queue it twice and the two fetches would race on one file.
