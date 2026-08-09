@@ -1,60 +1,72 @@
 slug,name,kind,parent_slug,parent_name,description,sermon_count,variants
-o-livro-dos-reis,O Livro dos Reis,ebd,,,Estudo do conteúdo e dos principais temas dos livros dos Reis.,17,O Livro dos Reis
-atributos-de-deus,Atributos de Deus,ebd,,,Estudo dos atributos e das perfeições de Deus.,11,Atribututos de Deus|Atributos de Deus
-diaconia,Diaconia,diaconia,,,Curso sobre o ministério e o serviço dos diáconos.,7,Diaconia
-cfw-23-do-magistrado-civil,CFW 23 — Do Magistrado Civil,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo bíblico e confessional sobre o magistrado civil.,5,CFW 23
-cfw-28-do-batismo,CFW 28 — Do Batismo,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre o sacramento do batismo.,5,CFW 28
-cfw-3-do-eterno-decreto-de-deus,CFW 3 — Do Eterno Decreto de Deus,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre o eterno decreto de Deus.,5,CFW 3
-evangelismo-e-missoes,Evangelismo e Missões,ebd,,,"Estudo sobre o evangelho, o evangelismo e a missão cristã.",5,Evangelismo e Missões
-presbiteros-bispos-e-pastores,"Presbíteros, Bispos e Pastores",ebd,,,Estudo sobre os ofícios e as responsabilidades dos líderes da igreja.,5,"Presbíteros, Bispos e Pastores"
-vii-conferencia-peregrinos,VII Conferência Peregrinos,conferencia,,,Conferência sobre viver a cidadania celestial em meio à cidadania terrena.,5,VII Conferência Peregrinos
-cfw-2-de-deus-e-da-santissima-trindade,CFW 2 — De Deus e da Santíssima Trindade,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre Deus e a Santíssima Trindade.,4,CFW 2
-escolhendo-presbiteros,Escolhendo Presbíteros,ebd,,,Orientações para a escolha de presbíteros na igreja.,4,Escolhendo Presbíteros
-i-congresso-peregrinos,I Congresso Peregrinos,congresso,,,Congresso sobre a doutrina e a prática da santificação.,4,I Congresso Peregrinos
-igreja-e-comunhao,Igreja e Comunhão,ebd,,,Estudo sobre a vida da igreja e a comunhão entre os cristãos.,4,Igreja e Comunhão
+evangelismo-e-missoes,Evangelismo e Missões,ebd,,,"Estudos sobre evangelismo, missões e o testemunho cristão no mundo.",17,Evangelismo e Missões
+o-livro-dos-reis,O Livro dos Reis,ebd,,,Exposição dos livros de 1 e 2 Reis.,17,O Livro dos Reis
+cfw-28-do-batismo,CFW 28 — Do Batismo,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do ensino da Confissão de Westminster sobre o batismo.,14,CFW 28
+atributos-de-deus,Atributos de Deus,ebd,,,Estudo dos atributos e perfeições de Deus.,11,Atribututos de Deus|Atributos de Deus
+cfw-23-do-magistrado-civil,CFW 23 — Do Magistrado Civil,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do papel e das responsabilidades do magistrado civil.,8,CFW 23
+diaconia,Diaconia,diaconia,,,Estudos sobre o ministério e o serviço dos diáconos.,7,Diaconia
+cfw-3-do-eterno-decreto-de-deus,CFW 3 — Do Eterno Decreto de Deus,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo dos decretos eternos de Deus e sua relação com a salvação.,5,CFW 3
+presbiteros-bispos-e-pastores,"Presbíteros, Bispos e Pastores",ebd,,,"Estudo dos ofícios e das responsabilidades de presbíteros, bispos e pastores.",5,"Presbíteros, Bispos e Pastores"
+vii-conferencia-peregrinos,VII Conferência Peregrinos,conferencia,,,Conferência sobre cidadania cristã e esperança em Cristo.,5,VII Conferência Peregrinos
+cfw-2-de-deus-e-da-santissima-trindade,CFW 2 — De Deus e da Santíssima Trindade,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina de Deus e da Santíssima Trindade.,4,CFW 2
+cfw-21-do-culto-religioso-e-do-domingo,CFW 21 — Do Culto Religioso e do Domingo,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do culto religioso e da observância do domingo.,4,CFW 21
+escolhendo-presbiteros,Escolhendo Presbíteros,ebd,,,Orientações sobre a escolha de presbíteros para a igreja.,4,Escolhendo Presbíteros
+i-congresso-peregrinos,I Congresso Peregrinos — Santificação,congresso,,,"Congresso sobre a natureza, a prática e os perigos relacionados à santificação.",4,I Congresso Peregrinos
+igreja-e-comunhao,Igreja e Comunhão,ebd,,,Estudo sobre a igreja e a comunhão entre os cristãos.,4,Igreja e Comunhão
 iv-conferencia-peregrinos,IV Conferência Peregrinos,conferencia,,,Conferência sobre aplicações da cristologia no culto e na ética cristã.,4,IV Conferência Peregrinos
 v-conferencia-peregrinos,V Conferência Peregrinos,conferencia,,,Conferência sobre as alianças bíblicas e seu cumprimento em Cristo.,4,V Conferência Peregrinos
-vi-conferencia-peregrinos,VI Conferência Peregrinos,conferencia,,,Conferência sobre princípios e práticas do aconselhamento bíblico.,4,VI Conferência Peregrinos
-cfw-4-da-criacao,CFW 4 — Da Criação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a doutrina da criação.,3,CFW 4
-cfw-8-de-cristo-o-mediador,"CFW 8 — De Cristo, o Mediador",cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre Cristo como Mediador e sua obra.,3,CFW 8
-escolhendo-diaconos,Escolhendo Diáconos,ebd,,,Orientações para a escolha de diáconos na igreja.,3,Escolhendo Diáconos
+vi-conferencia-peregrinos,VI Conferência Peregrinos,conferencia,,,Conferência introdutória ao aconselhamento bíblico e suas práticas.,4,VI Conferência Peregrinos
+cfw-4-da-criacao,CFW 4 — Da Criação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina da criação conforme a Confissão de Westminster.,3,CFW 4
+cfw-8-de-cristo-o-mediador,"CFW 8 — De Cristo, o Mediador",cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da pessoa e da obra de Cristo como Mediador.,3,CFW 8
+escolhendo-diaconos,Eleição de Diáconos,ebd,,,Estudos sobre o processo de eleição de diáconos.,3,Escolhendo Diáconos
+eleicao-de-diaconos,Escolhendo Diáconos,ebd,,,Estudos sobre o processo de escolha de diáconos.,3,Eleição de Diáconos
 ii-conferencia-peregrinos,II Conferência Peregrinos,conferencia,,,Conferência sobre a igreja de Cristo no Antigo Testamento.,3,II Conferência Peregrinos
+ii-confraria-peregrinos,II Confraria Peregrinos,confraria,,,Encontros sobre o dever do homem crente.,3,II Confraria Peregrinos
 o-dia-do-senhor,O Dia do Senhor,ebd,,,Estudo sobre o significado e a observância do Dia do Senhor.,3,O dia do Senhor
-adoracao-biblica,Adoração Bíblica,ebd,,,Estudo sobre os princípios bíblicos da adoração cristã.,2,Adoração Bíblica
-cfw-1-da-escritura-sagrada,CFW 1 — Das Sagradas Escrituras,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a natureza e a autoridade das Escrituras.,2,CFW 1
-cfw-21-do-culto-religioso-e-do-domingo,CFW 21 — Do Culto Religioso e do Domingo,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre o culto religioso e o Dia do Senhor.,2,CFW 21
-cfw-30-das-censuras-eclesiasticas,CFW 30 — Das Censuras Eclesiásticas,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre as censuras eclesiásticas.,2,CFW 30
-cfw-5-da-providencia,CFW 5 — Da Providência,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a providência de Deus.,2,CFW 5
-cfw-6-da-queda-do-homem-do-pecado-e-do-seu-castigo,"CFW 6 — Da Queda do Homem, do Pecado e do seu Castigo",cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,"Estudo confessional sobre a queda, o pecado e suas consequências.",2,CFW 6
-cfw-7-do-pacto-de-deus-com-o-homem,CFW 7 — Do Pacto de Deus com o Homem,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre o pacto de Deus com o homem.,2,CFW 7
-ensinando-no-caminho-ensinando-na-palavra,"Ensinando no Caminho, Ensinando na Palavra",ebd,,,Estudo sobre o ensino da fé no lar e na comunidade cristã.,2,"Ensinando no caminho, ensinando na palavra|Ensinando no caminho, ensinando na Palavra"
-iii-conferencia-peregrinos,III Conferência Peregrinos,conferencia,,,Conferência sobre a lei moral e a vida cristã.,2,III Conferência Peregrinos
+o-plano-de-deus-para-a-humanidade,O Plano de Deus para a Humanidade,ebd,,,Estudo do plano de Deus para a humanidade.,3,O Plano de Deus para a Humanidade
+adoracao-biblica,Adoração Bíblica,ebd,,,Estudo dos princípios bíblicos para a adoração.,2,Adoração Bíblica
+cfw-1-da-escritura-sagrada,CFW 1 — Das Sagradas Escrituras,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina das Sagradas Escrituras.,2,CFW 1
+cfw-10-da-liberdade-crista-e-da-liberdade-de-consciencia,CFW 10 — Da Vocação Eficaz,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da vocação eficaz e da liberdade cristã e de consciência.,2,CFW 10
+cfw-14-da-fe-salvadora,CFW 14 — Da Fé Salvadora,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da natureza e da atuação da fé salvadora.,2,CFW 14
+cfw-22-dos-juramentos-legais-e-dos-votos,CFW 22 — Dos Juramentos Legais e dos Votos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo dos juramentos legais e dos votos segundo a Confissão de Westminster.,2,CFW 22
+cfw-30-das-censuras-eclesiasticas,CFW 30 — Das Censuras Eclesiásticas,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo das censuras e da disciplina eclesiástica.,2,CFW 30
+cfw-33-do-juizo-final,CFW 33 — Do Juízo Final,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina bíblica do juízo final.,2,CFW 33
+cfw-5-da-providencia,CFW 5 — Da Providência,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da providência de Deus sobre sua criação e suas criaturas.,2,CFW 5
+cfw-6-da-queda-do-homem-do-pecado-e-do-seu-castigo,"CFW 6 — Da Queda do Homem, do Pecado e do seu Castigo",cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,"Estudo da queda humana, do pecado e de suas consequências.",2,CFW 6
+cfw-7-do-pacto-de-deus-com-o-homem,CFW 7 — Do Pacto de Deus com o Homem,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,"Estudo do pacto de Deus com o homem, incluindo o pacto de obras.",2,CFW 7
+ensinando-no-caminho-ensinando-na-palavra,"Ensinando no Caminho, Ensinando na Palavra",ebd,,,Estudo sobre o ensino da fé no caminho da vida e na Palavra.,2,"Ensinando no caminho, ensinando na palavra|Ensinando no caminho, ensinando na Palavra"
+iii-conferencia-peregrinos,III Conferência Peregrinos,conferencia,,,"Conferência sobre a lei moral, a piedade e o não legalismo.",2,III Conferência Peregrinos
 permanencia-no-casamento,Permanência no Casamento,ebd,,,Estudo sobre a permanência e a fidelidade no casamento.,2,Permanência no casamento
-sobre-o-vinho-na-ceia,Sobre o Vinho na Ceia,ebd,,,Estudo sobre o uso do vinho na Bíblia e na Ceia do Senhor.,2,Sobre o vinho na ceia
-a-confissao-de-fe-de-westminster,A Confissão de Fé de Westminster,cfw,,,Apresentação da Confissão de Fé de Westminster.,1,A Confissão de Fé de Westminster
+sobre-o-vinho-na-ceia,Sobre o Vinho na Ceia,ebd,,,Estudo sobre o uso e o significado do vinho na Ceia e na Bíblia.,2,Sobre o vinho na ceia
+a-confissao-de-fe-de-westminster,A Confissão de Fé de Westminster,cfw,,,Introdução à Confissão de Fé de Westminster.,1,A Confissão de Fé de Westminster
 a-enfermidade-na-vida-crista,A Enfermidade na Vida Cristã,ebd,,,Reflexão sobre a enfermidade na experiência da vida cristã.,1,A Enfermidade na Vida Cristã
-apologetica,Apologética,ebd,,,Introdução à defesa racional e bíblica da fé cristã.,1,Apologética
-as-marcas-de-uma-igreja-fiel,As Marcas de uma Igreja Fiel,ebd,,,Estudo sobre características que identificam uma igreja fiel.,1,As Marcas de Uma Igreja Fiel
-casamento-o-preparo,Casamento: o Preparo,ebd,,,Orientações para a preparação para o casamento.,1,"Casamento, o preparo"
-cfw-10-da-liberdade-crista-e-da-liberdade-de-consciencia,CFW 10 — Da Liberdade Cristã e da Liberdade de Consciência,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a liberdade cristã e de consciência.,1,CFW 10
-cfw-11-da-justificacao,CFW 11 — Da Justificação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a justificação pela fé.,1,CFW 11
-cfw-12-da-adocao,CFW 12 — Da Adoção,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a adoção como filhos de Deus.,1,CFW 12
-cfw-13-da-santificacao,CFW 13 — Da Santificação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a obra da santificação.,1,CFW 13
-cfw-14-da-fe-salvadora,CFW 14 — Da Fé Salvadora,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a natureza da fé salvadora.,1,CFW 14
-cfw-16-das-boas-obras,CFW 16 — Das Boas Obras,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a natureza e o propósito das boas obras.,1,CFW 16
-cfw-18-da-certeza-da-graca-e-da-salvacao,CFW 18 — Da Certeza da Graça e da Salvação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a certeza da graça e da salvação.,1,CFW 18
-cfw-27-dos-sacramentos,CFW 27 — Dos Sacramentos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo confessional sobre a natureza e a finalidade dos sacramentos.,1,CFW 27
-culto-domestico,Culto Doméstico,ebd,,,Estudo sobre a prática do culto doméstico no lar cristão.,1,Culto doméstico
-cultuando-com-toda-a-familia,Cultuando com Toda a Família,ebd,,,Estudo sobre a participação da família na adoração cristã.,1,Cultuando com toda a Família
-eleicao-de-diaconos,Eleição de Diáconos,ebd,,,Orientações sobre o processo de eleição de diáconos.,1,Eleição de Diáconos
-exortacao-a-consolarmos-uns-aos-outros,Exortação a Consolarmos uns aos Outros,ebd,,,Exortação cristã ao consolo e ao cuidado mútuo.,1,Exortação a consolarmos uns aos outros
+apologetica,Apologética,ebd,,,Estudo sobre a defesa racional da fé cristã.,1,Apologética
+as-marcas-de-uma-igreja-fiel,As Marcas de uma Igreja Fiel,ebd,,,Estudo sobre as características de uma igreja fiel.,1,As Marcas de Uma Igreja Fiel
+casamento-o-preparo,"Casamento, o Preparo",ebd,,,Orientações sobre o preparo para o casamento.,1,"Casamento, o preparo"
+cfw-11-da-justificacao,CFW 11 — Da Justificação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina da justificação pela fé.,1,CFW 11
+cfw-12-da-adocao,CFW 12 — Da Adoção,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da adoção dos crentes como filhos de Deus.,1,CFW 12
+cfw-13-da-santificacao,CFW 13 — Da Santificação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina da santificação.,1,CFW 13
+cfw-15-do-arrependimento-para-a-vida,CFW 15 — Do Arrependimento para a Vida,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do arrependimento que conduz à vida.,1,CFW 15
+cfw-16-das-boas-obras,CFW 16 — Das Boas Obras,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da natureza e do propósito das boas obras.,1,CFW 16
+cfw-17-da-perseveranca-dos-santos,CFW 17 — Da Perseverança dos Santos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da perseverança dos santos na graça de Deus.,1,CFW 17
+cfw-18-da-certeza-da-graca-e-da-salvacao,CFW 18 — Da Certeza da Graça e da Salvação,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo sobre a certeza da graça e da salvação.,1,CFW 18
+cfw-19-da-lei-de-deus,CFW 19 — Da Lei de Deus,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da lei de Deus e de seu uso na vida cristã.,1,CFW 19
+cfw-24-do-matrimonio-e-do-divorcio,CFW 24 — Do Matrimônio e do Divórcio,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do matrimônio e do divórcio à luz da Confissão de Westminster.,1,CFW 24
+cfw-25-da-igreja,CFW 25 — Da Igreja,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da natureza e das características da igreja.,1,CFW 25
+cfw-26-da-comunhao-dos-santos,CFW 26 — Da Comunhão dos Santos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da comunhão dos santos em Cristo.,1,CFW 26
+cfw-27-dos-sacramentos,CFW 27 — Dos Sacramentos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da natureza e do propósito dos sacramentos.,1,CFW 27
+cfw-29-da-ceia-do-senhor,CFW 29 — Da Ceia do Senhor,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da doutrina da Ceia do Senhor.,1,CFW 29
+cfw-31-dos-sinodos-e-concilios,CFW 31 — Dos Sínodos e Concílios,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo da função dos sínodos e concílios na igreja.,1,CFW 31
+cfw-32-do-estado-do-homem-depois-da-morte-e-da-ressurreicao-dos-mortos,CFW 32 — Do Estado do Homem Depois da Morte e da Ressurreição dos Mortos,cfw,a-confissao-de-fe-de-westminster,Confissão de Fé de Westminster,Estudo do estado após a morte e da ressurreição dos mortos.,1,CFW 32
+culto-domestico,Culto Doméstico,ebd,,,Estudo sobre a prática do culto doméstico.,1,Culto doméstico
+cultuando-com-toda-a-familia,Cultuando com toda a Família,ebd,,,Estudo sobre a adoração e o culto cristão em família.,1,Cultuando com toda a Família
+exortacao-a-consolarmos-uns-aos-outros,Exortação a Consolarmos uns aos Outros,ebd,,,Exortação à consolação mútua entre os cristãos.,1,Exortação a consolarmos uns aos outros
 graca-eficaz,Graça Eficaz,ebd,,,Estudo sobre a graça eficaz na obra da salvação.,1,Graça Eficaz
 liberdade-de-expressao-de-crenca-religiosa,Liberdade de Expressão de Crença Religiosa,ebd,,,Reflexão sobre a liberdade de expressão da crença religiosa.,1,Liberdade de expressão de crença religiosa
-o-decimo-mandamento,O Décimo Mandamento,ebd,,,Estudo sobre o décimo mandamento e a cobiça.,1,O décimo mandamento
-o-nono-mandamento,O Nono Mandamento,ebd,,,Estudo sobre o nono mandamento e a verdade.,1,O nono mandamento
-o-plano-de-deus-para-a-humanidade,O Plano de Deus para a Humanidade,ebd,,,Reflexão sobre o plano de Deus para a humanidade.,1,O Plano de Deus para a Humanidade
-o-primeiro-casamento,O Primeiro Casamento,ebd,,,Estudo sobre o primeiro casamento conforme o relato bíblico.,1,O primeiro casamento
-reforma-protestante-e-suas-contribuicoes,Reforma Protestante e Suas Contribuições,ebd,,,Reflexão sobre a Reforma Protestante e suas contribuições.,1,Reforma Protestante e Suas Contribuições
-sinais,Sinais,ebd,,,Estudo sobre sinais apresentados no contexto bíblico.,1,Sinais
-sola-fide,Sola Fide,ebd,,,Estudo sobre a doutrina da justificação somente pela fé.,1,Sola Fide
-sola-scriptura,Sola Scriptura,ebd,,,Estudo sobre a autoridade suprema das Escrituras.,1,Sola Scriptura
+o-decimo-mandamento,O Décimo Mandamento,ebd,,,Estudo sobre o décimo mandamento.,1,O décimo mandamento
+o-nono-mandamento,O Nono Mandamento,ebd,,,Estudo sobre o nono mandamento.,1,O nono mandamento
+o-primeiro-casamento,O Primeiro Casamento,ebd,,,Estudo sobre o primeiro casamento segundo o relato bíblico.,1,O primeiro casamento
+reforma-protestante-e-suas-contribuicoes,Reforma Protestante e suas Contribuições,ebd,,,Reflexão sobre a Reforma Protestante e suas contribuições.,1,Reforma Protestante e Suas Contribuições
+sinais,Sinais,ebd,,,Estudo sobre sinais no contexto da fé cristã.,1,Sinais
+sola-fide,Sola Fide,ebd,,,Estudo da doutrina da justificação somente pela fé.,1,Sola Fide
+sola-scriptura,Sola Scriptura,ebd,,,Estudo do princípio de que somente a Escritura é a autoridade da fé.,1,Sola Scriptura
