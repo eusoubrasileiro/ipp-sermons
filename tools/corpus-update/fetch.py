@@ -9,6 +9,7 @@ and stays in the work directory forever.
 import json
 import os
 import pathlib
+import re
 import statistics
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -96,10 +97,32 @@ def measured_duration(path: pathlib.Path) -> float | None:
         return None
 
 
+STEM_ID_RE = re.compile(r"^.* \[(?P<id>\d+)\]$")
+
+
+def forget_row(stem: str) -> None:
+    """Drop this sermon's line from rows.jsonl, if it got that far.
+
+    Three stages each keep their own record of what is done, and every one of
+    them is keyed by something a re-download does not change. `rows.jsonl` is
+    postprocess's, so a sermon left in it is never re-cleaned however many
+    times its audio is fetched again -- and the corpus keeps the word count and
+    score measured off the damaged file.
+    """
+    match = STEM_ID_RE.match(stem)
+    if not match or not config.ROWS_JSONL.exists():
+        return
+    kept = [
+        line for line in config.ROWS_JSONL.read_text(encoding="utf-8").splitlines()
+        if line.strip() and str(json.loads(line)["id"]) != match["id"]
+    ]
+    config.ROWS_JSONL.write_text("".join(f"{line}\n" for line in kept), encoding="utf-8")
+
+
 def discard(path: pathlib.Path) -> None:
     """Remove a download and everything derived from it.
 
-    Deleting the audio alone is only half of "fetch this again". Work is keyed
+    Deleting the audio alone is only part of "fetch this again". Work is keyed
     by stem, and re-downloading does not change the stem, so `pending_audio()`
     in transcribe.py goes on seeing `raw/<stem>.txt` and calls the sermon done
     -- the track comes back whole and is then skipped forever, still carrying
@@ -109,6 +132,7 @@ def discard(path: pathlib.Path) -> None:
     path.unlink(missing_ok=True)
     (config.RAW_DIR / f"{path.stem}.txt").unlink(missing_ok=True)
     (config.ALIGNMENT_DIR / f"{path.stem}.gz").unlink(missing_ok=True)
+    forget_row(path.stem)
 
 
 def discard_if_short(path: pathlib.Path) -> bool:

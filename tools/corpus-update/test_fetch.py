@@ -131,6 +131,34 @@ def test_discarding_the_audio_also_drops_the_transcript_made_from_it(tmp_path, m
     assert not alignment.exists()
 
 
+def test_discarding_the_audio_also_drops_the_row_built_from_it(tmp_path, monkeypatch):
+    """The third derived artifact, and the one that hides.
+
+    `postprocess` decides what is left to clean from `rows.jsonl`, so a sermon
+    left in there is never re-cleaned no matter how many times its audio is
+    fetched again -- and `append` would go on carrying the numbers measured off
+    the damaged file.
+    """
+    path = download(tmp_path, monkeypatch, "j [10]", declared=3600, measured=60)
+    monkeypatch.setattr(config, "ROWS_JSONL", tmp_path / "rows.jsonl")
+    config.ROWS_JSONL.write_text(
+        '{"id": 10, "words": 900}\n{"id": 11, "words": 6000}\n', encoding="utf-8"
+    )
+
+    assert fetch.discard_if_short(path) is False
+    assert config.ROWS_JSONL.read_text(encoding="utf-8") == '{"id": 11, "words": 6000}\n'
+
+
+def test_discarding_a_track_never_processed_leaves_the_rows_alone(tmp_path, monkeypatch):
+    path = download(tmp_path, monkeypatch, "k [11]", declared=3600, measured=60)
+    monkeypatch.setattr(config, "ROWS_JSONL", tmp_path / "rows.jsonl")
+    config.ROWS_JSONL.write_text('{"id": 12, "words": 6000}\n', encoding="utf-8")
+
+    fetch.discard_if_short(path)
+
+    assert config.ROWS_JSONL.read_text(encoding="utf-8") == '{"id": 12, "words": 6000}\n'
+
+
 def test_a_whole_download_keeps_its_transcript(tmp_path, monkeypatch):
     """The counterpart, and the one that matters for cost: the sweep runs over
     every downloaded track on every run, so clearing a good sermon's transcript
