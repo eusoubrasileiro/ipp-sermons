@@ -3,22 +3,21 @@
  *
  * Shared accessor for `.quality-gate/review-log.jsonl` — the append-only log
  * of Sonnet-reviewer verdicts. Owns the path, the JSONL format, and the
- * read/write primitives used by `security-review.mjs` (writer),
- * `backfill-review-log-commit.mjs` (rewriter), and the readers
+ * read/append primitives used by `security-review.mjs` (writer) and the readers
  * (`pr-comment-review.mjs`, `print-quality-delta.mjs`, `show-review-log.mjs`).
+ *
+ * Append-only, and nothing here rewrites it. There used to be a whole-file
+ * rewriter, for a post-commit hook that guessed which commit an entry belonged
+ * to; it guessed wrong on 36 of 37 entries. `reviewedCommit()` records the hash
+ * while it is still known, and the history it got wrong is left as written —
+ * `reviewCoversCommit()` is how a reader declines to believe it.
  *
  * Schema is permissive on purpose — the log is a forensic trail, not a
  * contract. Old entries must keep parsing forever.
  */
 
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from "node:fs";
+import { execSync } from "node:child_process";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -28,8 +27,8 @@ const repoRoot = resolve(__dirname, "..", "..");
 
 /**
  * @typedef {Object} ReviewLogEntry
- * @property {string} ts                ISO timestamp.
- * @property {string} commit            Commit hash, or "(staged)" before post-commit backfill.
+ * @property {string} ts                ISO timestamp, written when the review ran.
+ * @property {string} commit            Hash of the commit the review read — see reviewedCommit().
  * @property {string} verdict           "approve" | "reject" (other values tolerated).
  * @property {string[]} [sensitiveFiles] Subset of stagedFiles flagged as sensitive paths.
  * @property {string[]} [stagedFiles]   Files staged at review time.
@@ -41,6 +40,55 @@ const repoRoot = resolve(__dirname, "..", "..");
  */
 
 export const REVIEW_LOG_PATH = join(repoRoot, ".quality-gate", "review-log.jsonl");
+
+/** What `git push` sends for a branch deletion; there is nothing to review. */
+const ZERO_SHA = "0".repeat(40);
+
+/**
+ * The commit an entry being written now is about.
+ *
+ * Stamped at write time, and that is the whole point. The reviewer runs from
+ * `.husky/pre-push`, so the commits it reads already exist — `PUSH_LOCAL_SHA`
+ * is the top of the range the hook parsed off stdin, and HEAD is the answer
+ * when the script is run by hand.
+ *
+ * It used to write the literal `"(staged)"` and let `.husky/post-commit` fill
+ * the hash in afterwards. That hook had already run by the time anyone pushed,
+ * so every entry was claimed by the *next* commit somebody made: 36 of the 37
+ * entries in the log name a commit that did not exist when the review ran, one
+ * of them by 29 hours. The reader rendered them as approvals. Nothing can
+ * reconstruct the right hash later, so it is recorded while it is still known.
+ *
+ * @returns {string}
+ */
+export function reviewedCommit() {
+  const pushed = (process.env.PUSH_LOCAL_SHA ?? "").trim();
+  if (pushed && pushed !== ZERO_SHA) return pushed;
+  try {
+    return execSync("git rev-parse HEAD", { cwd: repoRoot, encoding: "utf8" }).trim();
+  } catch {
+    return "(unknown)";
+  }
+}
+
+/**
+ * Whether an entry could actually have read the commit it names.
+ *
+ * A review that ran before its commit existed did not review it, whatever the
+ * `commit` field says. This is the check that turns the pre-backfill entries
+ * from silent green verdicts into visible warnings without rewriting the log,
+ * which is forensic and stays as written.
+ *
+ * @param {ReviewLogEntry} entry
+ * @param {string} commitIso  The commit's committer date (`git show -s --format=%cI`).
+ * @returns {boolean}
+ */
+export function reviewCoversCommit(entry, commitIso) {
+  const reviewedAt = new Date(entry?.ts ?? "").getTime();
+  const committedAt = new Date(commitIso ?? "").getTime();
+  if (Number.isNaN(reviewedAt) || Number.isNaN(committedAt)) return false;
+  return reviewedAt >= committedAt;
+}
 
 /**
  * Load every parseable entry, in file order (oldest first).
@@ -88,18 +136,3 @@ export function appendEntry(entry) {
   appendFileSync(REVIEW_LOG_PATH, `${JSON.stringify(entry)}\n`, "utf8");
 }
 
-/**
- * Atomically rewrite the entire log. Writes to a tmp file in the same
- * directory and renameSync's it over the target so a crash mid-write can
- * never leave a half-written log.
- *
- * @param {ReviewLogEntry[]} entries
- */
-export function rewriteAllEntries(entries) {
-  const dir = dirname(REVIEW_LOG_PATH);
-  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const body = entries.map((e) => JSON.stringify(e)).join("\n") + (entries.length ? "\n" : "");
-  const tmpPath = `${REVIEW_LOG_PATH}.tmp.${process.pid}.${Date.now()}`;
-  writeFileSync(tmpPath, body, "utf8");
-  renameSync(tmpPath, REVIEW_LOG_PATH);
-}

@@ -19,7 +19,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { callClaudeStructured } from "./lib/claude-cli.mjs";
-import { appendEntry } from "./lib/review-log.mjs";
+import { appendEntry, reviewedCommit } from "./lib/review-log.mjs";
 import { loadPlan, summarizeWhy, WHY_SENTINEL } from "./lib/intent.mjs";
 import { ratificationFacts, ratificationSection } from "./lib/ratification.mjs";
 
@@ -331,7 +331,7 @@ function main() {
   if (pushedFiles.length === 0) {
     const entry = {
       ts: new Date().toISOString(),
-      commit: process.env.PUSH_LOCAL_SHA || "HEAD",
+      commit: reviewedCommit(),
       verdict: "approve",
       sensitiveFiles: [],
       stagedFiles: [],
@@ -384,7 +384,7 @@ function main() {
   if (!claudeResult.ok) {
     const entry = {
       ts: new Date().toISOString(),
-      commit: "(staged)",
+      commit: reviewedCommit(),
       verdict: "reject",
       sensitiveFiles: [],
       stagedFiles: pushedFiles,
@@ -404,7 +404,7 @@ function main() {
   if (!verdict) {
     const entry = {
       ts: new Date().toISOString(),
-      commit: "(staged)",
+      commit: reviewedCommit(),
       verdict: "reject",
       sensitiveFiles: [],
       stagedFiles: pushedFiles,
@@ -424,7 +424,7 @@ function main() {
 
   const entry = {
     ts: new Date().toISOString(),
-    commit: "(staged)",
+    commit: reviewedCommit(),
     verdict: verdict.verdict,
     // Mirrors the `ask` tier in .claude/settings.json. Keep the two in sync —
     // a path the settings guard but the log does not is invisible in review.
