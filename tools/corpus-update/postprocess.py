@@ -26,36 +26,61 @@ import spotify_ids
 # wrong by exactly one year and looks entirely right.
 DATE_IN_TITLE_RE = re.compile(r"(?<!\d)(\d{1,2})\D{1,3}(\d{1,2})\D{1,3}(\d{4})(?!\d)")
 
+# The same date, but only where the church labelled it as one. The description
+# is a paragraph of free prose on most of the archive and a `Pastor:/Data:/
+# Livro:/Assunto:` block on the newest uploads, so the label -- anchored to the
+# start of its own line, `re.M` -- is what separates the field from the prose
+# around it. Searching the description for digits instead is precisely the bug
+# this fell into once already; see resolve_date.
+DATE_LABEL_RE = re.compile(r"^[ \t]*Data:[ \t]*(\d{1,2})\D{1,3}(\d{1,2})\D{1,3}(\d{4})[ \t]*$", re.M)
 
-def resolve_date(title: str, timestamp: int) -> datetime.date:
-    """The sermon's date, from its title when the title is trustworthy.
+
+def plausible_date(match: re.Match | None) -> datetime.date | None:
+    """A `DD-MM-YYYY` match as a date, or None if it was never one.
+
+    The window matches `resolveDate` in backend/src/lib/corpus.ts so the loader
+    never has to second-guess a committed row.
+    """
+    if match is None:
+        return None
+    try:
+        d, m, y = map(int, match.groups())
+        parsed = datetime.date(y, m, d)
+    except ValueError:
+        return None
+    return parsed if 2015 <= parsed.year <= 2030 else None
+
+
+def resolve_date(title: str, description: str, timestamp: int) -> datetime.date:
+    """The sermon's date: the title, then the description's label, then upload.
 
     Titles carry a `DD-MM-YYYY` prefix by convention, but only by convention:
     the corpus contains "05-01-20245", "0223-05-07" and a run of episodes with
-    no date at all. The publication timestamp -- always present, always sane --
-    backstops all of them, and the plausibility window matches `resolveDate` in
-    backend/src/lib/corpus.ts so the loader never has to.
+    no date at all. The title stays first because 619 of the 622 committed rows
+    were dated from it and this order is what keeps them still.
 
-    The title alone. This used to search the title and the description
-    concatenated with nothing between them, and a loose `(\\d{2}).+(\\d{2}).+
-    (\\d{4})` over that manufactured dates out of digits that were never one --
-    "2 Reis 21_1-9" and whatever followed it in the description. Three sermons
-    were live under a month nobody preached them in. A wrong date that passes
-    every check is worse than no date, because the fallback is right and free.
+    The `Data:` label is second because the convention ended. The church
+    stopped dating its titles and, in the same season, went from publishing 8-21
+    days after the service to 77-91 -- so the upload timestamp, which used to be
+    a fine backstop, is now most of a quarter wrong. The label is the church
+    stating the date itself, and on those uploads it is the only source left
+    that is right.
+
+    Read through the label, never by searching. This used to search the title
+    and the description concatenated with nothing between them, and a loose
+    `(\\d{2}).+(\\d{2}).+(\\d{4})` over that manufactured dates out of digits
+    that were never one -- "2 Reis 21_1-9" and whatever followed it. Three
+    sermons went live under a month nobody preached them in. That fix (5027df9)
+    then dropped the description wholesale and took the good field with the bad
+    parse; the anchor is what lets it come back. A wrong date that passes every
+    check is worse than no date, because the fallback is free.
     """
-    published = datetime.datetime.fromtimestamp(timestamp, datetime.UTC).date()
+    for match in (DATE_IN_TITLE_RE.search(title), DATE_LABEL_RE.search(description)):
+        parsed = plausible_date(match)
+        if parsed is not None:
+            return parsed
 
-    match = DATE_IN_TITLE_RE.search(title)
-    if match:
-        try:
-            d, m, y = map(int, match.groups())
-            parsed = datetime.date(y, m, d)
-            if 2015 <= parsed.year <= 2030:
-                return parsed
-        except ValueError:
-            pass
-
-    return published
+    return datetime.datetime.fromtimestamp(timestamp, datetime.UTC).date()
 
 
 def preacher_matcher():
@@ -195,7 +220,7 @@ def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | 
         "timestamp": timestamp,
         "sc_suffix_url": info.get("webpage_url_basename") or "",
         "sp_suffix_url": spotify.get(track_id) or "",
-        "date": resolve_date(title, timestamp).isoformat(),
+        "date": resolve_date(title, description, timestamp).isoformat(),
         "words": words,
         "sentences": sentences,
         "sent_ratio": sent_ratio,
