@@ -53,21 +53,25 @@ function categorize(file) {
   return "SOURCE";
 }
 
+// Full hashes, not `--oneline`. The log records what `git rev-parse` returns,
+// so an abbreviated hash here silently fails every lookup -- which is what it
+// did: the exact-match branch never once matched, and the file-set heuristic
+// that has since been deleted was quietly answering for the whole feature.
+const COMMIT_FORMAT = "--format=%H%x00%s";
+
 function getCommits() {
   // origin/main may not exist (e.g. no remote, fresh worktree). Fall back gracefully.
-  let raw = safeExec("git log --oneline origin/main..HEAD 2>/dev/null");
+  let raw = safeExec(`git log ${COMMIT_FORMAT} origin/main..HEAD 2>/dev/null`);
   if (!raw.trim()) {
-    raw = safeExec("git log --oneline -5");
+    raw = safeExec(`git log ${COMMIT_FORMAT} -5`);
   }
   return raw
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean)
     .map((line) => {
-      const idx = line.indexOf(" ");
-      return idx === -1
-        ? { hash: line, subject: "" }
-        : { hash: line.slice(0, idx), subject: line.slice(idx + 1) };
+      const [hash, subject = ""] = line.split("\x00");
+      return { hash, subject };
     });
 }
 
@@ -96,10 +100,14 @@ function getCommitTimestamp(hash) {
  * than a hash and had to be correlated by coincidence. `reviewedCommit()`
  * removed the reason, and matching on a coincidence of file names is one of the
  * ways a review of one push ends up displayed against a different commit.
+ *
+ * `hash` may be abbreviated; entries always hold the full 40 characters.
  */
-function findReviewEntryForCommit(reviewLog, hash) {
+export function findReviewEntryForCommit(reviewLog, hash) {
   const committedAt = getCommitTimestamp(hash);
-  const named = reviewLog.filter((e) => e.commit === hash);
+  const named = reviewLog.filter(
+    (e) => typeof e.commit === "string" && e.commit.length >= hash.length && e.commit.startsWith(hash),
+  );
   const covering = named.filter((e) => reviewCoversCommit(e, committedAt));
   if (covering.length > 0) return { entry: covering[covering.length - 1] };
   if (named.length > 0) return { stale: named[named.length - 1] };
@@ -116,7 +124,9 @@ function main() {
   const reviewLog = loadAllEntries();
 
   for (const { hash, subject } of commits) {
-    process.stdout.write(`\n${BOLD}${hash}${RESET} ${subject}\n`);
+    // Abbreviated for reading, matched in full: correlating on the short form
+    // is the bug this file just came out of.
+    process.stdout.write(`\n${BOLD}${hash.slice(0, 7)}${RESET} ${subject}\n`);
 
     const files = getCommitFiles(hash);
     if (files.length === 0) {
@@ -189,4 +199,10 @@ function main() {
   process.exit(0);
 }
 
-main();
+// Only when run as a script. The correlation rule above is the one piece of
+// this file that can be wrong without anyone noticing -- it was, for its whole
+// life -- so it has to be reachable from a test, and `main()` calls
+// process.exit.
+if (process.argv[1] && resolve(process.argv[1]) === __filename) {
+  main();
+}

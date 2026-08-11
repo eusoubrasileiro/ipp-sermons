@@ -120,3 +120,54 @@ describe("the log's writers and readers", () => {
     expect(src).not.toMatch(/bestTsDiff/);
   });
 });
+
+describe("findReviewEntryForCommit", () => {
+  const SHORT = HEAD.slice(0, 7);
+  const COMMITTED_AT = execSync(`git show -s --format=%cI ${HEAD}`, {
+    cwd: ROOT,
+    encoding: "utf8",
+  }).trim();
+  const after = new Date(new Date(COMMITTED_AT).getTime() + 60_000).toISOString();
+  const before = new Date(new Date(COMMITTED_AT).getTime() - 60_000).toISOString();
+
+  it("matches an abbreviated hash against the full one the log records", async () => {
+    // The defect this exists for: the writer records `git rev-parse` output and
+    // the display listed commits with `--oneline`, so `entry.commit === hash`
+    // compared 40 characters against 7 and never matched -- for the whole life
+    // of the file. Nobody saw it because the file-set heuristic answered
+    // instead, badly. Deleting the heuristic is what made it visible.
+    const { findReviewEntryForCommit } = await import(
+      new URL("../../scripts/show-review-log.mjs", import.meta.url).href
+    );
+
+    const found = findReviewEntryForCommit([{ commit: HEAD, ts: after }], SHORT);
+
+    expect(found.entry?.ts).toBe(after);
+    expect(found.stale).toBeUndefined();
+  });
+
+  it("reports a record that predates its commit as stale, not as a verdict", async () => {
+    const { findReviewEntryForCommit } = await import(
+      new URL("../../scripts/show-review-log.mjs", import.meta.url).href
+    );
+
+    const found = findReviewEntryForCommit(
+      [{ commit: HEAD, ts: before, verdict: "approve" }],
+      SHORT,
+    );
+
+    expect(found.entry).toBeUndefined();
+    expect(found.stale?.ts).toBe(before);
+  });
+
+  it("reports nothing at all when no entry names the commit", async () => {
+    const { findReviewEntryForCommit } = await import(
+      new URL("../../scripts/show-review-log.mjs", import.meta.url).href
+    );
+
+    const found = findReviewEntryForCommit([{ commit: "b".repeat(40), ts: after }], SHORT);
+
+    expect(found.entry).toBeUndefined();
+    expect(found.stale).toBeUndefined();
+  });
+});
