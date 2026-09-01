@@ -137,17 +137,39 @@ def provenance(stdout: str) -> str | None:
     return None
 
 
+def plan(compute_type: str | None) -> list[dict]:
+    """Every attempt, in order: the batch ladder, then the VAD swap.
+
+    The ladder exists for CUDA OOM, whose only cure is less batch. It cannot
+    cure the other failure -- a VAD that ends the sermon after four minutes --
+    so once it is exhausted the last attempt changes the VAD instead, and pays
+    for pyannote's memory with the compute type. An explicitly requested
+    compute type is honoured throughout, including there: a peer that must run
+    int8 cannot be handed float16 by a fallback.
+    """
+    attempts = [{"batch": b, "vad": None, "compute_type": compute_type}
+                for b in config.TRANSCRIBE_BATCH_SIZES]
+    fallback = config.TRANSCRIBE_VAD_FALLBACK
+    attempts.append({
+        "batch": config.TRANSCRIBE_BATCH_SIZES[-1],
+        "vad": fallback["vad"],
+        "compute_type": compute_type or fallback["compute_type"],
+    })
+    return attempts
+
+
 def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
     """Returns True when a complete transcript and its alignment landed.
 
     Judged by the output files rather than the exit code, and retried at a
     smaller batch size first, because the common failure on a 6 GB card is a
-    CUDA OOM whose only cure is less batch.
+    CUDA OOM whose only cure is less batch. See `plan` for the last attempt.
     """
     txt = config.RAW_DIR / f"{wav.stem}.txt"
     gz = config.RAW_DIR / f"{wav.stem}.gz"
 
-    for batch in config.TRANSCRIBE_BATCH_SIZES:
+    for attempt in plan(compute_type):
+        batch = attempt["batch"]
         cmd = [
             str(config.TRANSCRIBE_PYTHON),
             str(config.TRANSCRIBE_SCRIPT),
@@ -157,7 +179,8 @@ def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
             str(config.RAW_DIR),
             "--batch-size",
             str(batch),
-            *(["--compute-type", compute_type] if compute_type else []),
+            *(["--compute-type", attempt["compute_type"]] if attempt["compute_type"] else []),
+            *(["--vad", attempt["vad"]] if attempt["vad"] else []),
         ]
         proc = subprocess.run(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=cuda_env()
@@ -184,7 +207,8 @@ def transcribe(wav: pathlib.Path, compute_type: str | None = None) -> bool:
         # Leave nothing behind, or the next run treats the stem as done.
         txt.unlink(missing_ok=True)
         gz.unlink(missing_ok=True)
-        print(f"  batch {batch} failed: {reason}", flush=True)
+        where = f"batch {batch}" + (f" on the {attempt['vad']} VAD" if attempt["vad"] else "")
+        print(f"  {where} failed: {reason}", flush=True)
 
     return False
 

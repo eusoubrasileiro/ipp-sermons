@@ -94,6 +94,16 @@ TRANSCRIBE_SCRIPT = pathlib.Path(__file__).parent / "whisperx_worker.py"
 # 1 is the last resort for when the desktop is genuinely using more than usual.
 TRANSCRIBE_BATCH_SIZES = [2, 2, 1]
 
+# What to try when every batch size above has failed on coverage. At that point
+# the batch size is not the variable that matters: two sermons in one update
+# reached 8% and 5% of their audio on all three attempts, and both transcribed
+# whole the moment the VAD changed. silero stays the default for the reason
+# whisperx_worker documents -- pyannote's segmentation model will not fit beside
+# large-v3 in float16 on a 6 GB card -- so the fallback buys that headroom with
+# the compute type, at a cost measured against this corpus: 85.9 vs 85.8, and
+# 0.57% of words different.
+TRANSCRIBE_VAD_FALLBACK = {"vad": "pyannote", "compute_type": "int8_float32"}
+
 # Loudness normalisation, spectral denoise and a high-pass to kill room rumble,
 # then Whisper's required 16 kHz mono. Straight from transcribex.py.
 FFMPEG_FILTERS = "loudnorm,afftdn=nf=-25,highpass=f=150"

@@ -293,3 +293,85 @@ def test_an_alignment_with_no_sidecar_is_left_alone(tmp_path, monkeypatch):
     collected(tmp_path, monkeypatch, ("c [3]", None, 10))
     assert transcribe.discard_incomplete() == []
     assert (config.ALIGNMENT_DIR / "c [3].gz").exists()
+
+
+# --- the VAD is the last thing tried ----------------------------------------
+#
+# Two of nine sermons in one update reached 8% and 5% of their audio at every
+# batch size, three attempts each. That is not the intermittent silero misfire
+# the retry ladder was built for -- a smaller batch cannot cure a VAD that has
+# decided the sermon ends after four minutes, so the ladder could only fail
+# more slowly. Both transcribed whole on the VAD the corpus was built with.
+#
+# pyannote is not the default for the reason whisperx_worker documents: its
+# segmentation model does not fit beside large-v3 in float16 on a 6 GB card.
+# The fallback pays for the headroom with the compute type the worker already
+# measured against this corpus -- 85.9 vs 85.8, 0.57% of words different.
+
+
+def attempts(monkeypatch, calls: list) -> None:
+    """Record the worker command lines a `transcribe()` call would run, and make
+    every one of them fail so the whole ladder is walked."""
+    import subprocess as sp
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        return sp.CompletedProcess(cmd, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(transcribe.subprocess, "run", run)
+
+
+def flag(cmd: list[str], name: str) -> str | None:
+    return cmd[cmd.index(name) + 1] if name in cmd else None
+
+
+def test_every_batch_size_is_tried_on_the_default_vad(tmp_path, monkeypatch):
+    calls: list = []
+    attempts(monkeypatch, calls)
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(config, "ALIGNMENT_DIR", tmp_path)
+
+    transcribe.transcribe(tmp_path / "a [1].wav")
+
+    silero = [c for c in calls if flag(c, "--vad") in (None, "silero")]
+    assert [flag(c, "--batch-size") for c in silero] == ["2", "2", "1"]
+
+
+def test_the_last_attempt_switches_the_vad(tmp_path, monkeypatch):
+    """The point of the change: after the ladder, stop varying the batch size
+    and vary the thing that actually failed."""
+    calls: list = []
+    attempts(monkeypatch, calls)
+    monkeypatch.setattr(config, "RAW_DIR", tmp_path)
+    monkeypatch.setattr(config, "ALIGNMENT_DIR", tmp_path)
+
+    transcribe.transcribe(tmp_path / "a [1].wav")
+
+    assert flag(calls[-1], "--vad") == "pyannote"
+    assert flag(calls[-1], "--compute-type") == "int8_float32"
+
+
+def test_a_sermon_that_works_first_time_never_reaches_the_fallback(tmp_path, monkeypatch):
+    """The fallback costs a whole extra transcription; it must only run when
+    every ordinary attempt is exhausted."""
+    calls: list = []
+    raw, align = tmp_path / "raw", tmp_path / "align"
+    raw.mkdir(), align.mkdir()
+    monkeypatch.setattr(config, "RAW_DIR", raw)
+    monkeypatch.setattr(config, "ALIGNMENT_DIR", align)
+    monkeypatch.setattr(transcribe, "coverage", lambda gz, wav: 1.0)
+
+    import subprocess as sp
+
+    def run(cmd, **kwargs):
+        calls.append(cmd)
+        stem = "a [1]"
+        (raw / f"{stem}.txt").write_text("text", encoding="utf-8")
+        (raw / f"{stem}.gz").write_bytes(b"gz")
+        return sp.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(transcribe.subprocess, "run", run)
+
+    assert transcribe.transcribe(tmp_path / "a [1].wav") is True
+    assert len(calls) == 1
+    assert flag(calls[0], "--vad") in (None, "silero")

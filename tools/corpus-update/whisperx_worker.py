@@ -7,14 +7,15 @@ hold the ASR model and the wav2vec aligner at once; each has to be loaded and
 freed in turn anyway, so there is nothing to keep resident between sermons.
 
 This is `archive/python-gpu/sermons_ai/transcribex_worker.py`, restored, with
-one forced divergence: it pins `vad_method="silero"` where the original used
-pyannote's default, because pyannote's segmentation model does not fit on this
-6 GB card beside large-v3 in float16 and OOMs before transcribing a word. The
-cost is that silero has been observed deciding everything after the first few
-minutes of a sermon is not speech; alignment then succeeds on the handful of
-segments it did find, so the result is a well-formed transcript of a fifth of
-the sermon. `transcribe.py` catches exactly that by coverage and retries. The
-full reasoning sits beside the `load_model` call -- change one, change both.
+one forced divergence: `--vad` defaults to silero where the original used
+pyannote, because pyannote's segmentation model does not fit on this 6 GB card
+beside large-v3 in float16 and OOMs before transcribing a word. The cost is that
+silero has been observed deciding everything after the first few minutes of a
+sermon is not speech; alignment then succeeds on the handful of segments it did
+find, so the result is a well-formed transcript of a fifth of the sermon.
+`transcribe.py` catches that by coverage, and when no batch size cures it asks
+for `--vad pyannote` with a compute type that leaves room for it. The full
+reasoning sits beside the `load_model` call -- change one, change both.
 
 Failures exit non-zero and write nothing -- a partial transcript that looks
 healthy is worse than no transcript.
@@ -85,7 +86,16 @@ def allow_pyannote_checkpoint(torch) -> None:
     torch.load = load
 
 
-def transcribe(wav: Path, out_dir: Path, batch_size: int, requested: str | None = None) -> None:
+DEFAULT_VAD = "silero"
+
+
+def transcribe(
+    wav: Path,
+    out_dir: Path,
+    batch_size: int,
+    requested: str | None = None,
+    vad: str = DEFAULT_VAD,
+) -> None:
     import ctranslate2
     import torch
 
@@ -97,17 +107,21 @@ def transcribe(wav: Path, out_dir: Path, batch_size: int, requested: str | None 
     compute_type = pick_compute_type(ctranslate2.get_supported_compute_types(device), requested)
     # Printed rather than assumed: this is the one line that tells a reader of
     # the log which machine produced a given transcript and how.
-    print(f"compute_type={compute_type} on {torch.cuda.get_device_name(0)}", flush=True)
+    print(f"compute_type={compute_type} vad={vad} on {torch.cuda.get_device_name(0)}", flush=True)
     audio = whisperx.load_audio(str(wav))
 
-    # silero rather than the pyannote VAD the original used, for one reason:
-    # pyannote's segmentation model does not fit on this 6 GB card next to
-    # large-v3 in float16, and OOMs before it transcribes a word. silero is
-    # cheap enough to coexist, at the cost of occasionally deciding that the
-    # back half of a sermon is not speech -- which transcribe.py detects by
-    # length and retries, because the misfire is intermittent, not systematic.
+    # silero by default rather than the pyannote VAD the original used, for one
+    # reason: pyannote's segmentation model does not fit on this 6 GB card next
+    # to large-v3 in float16, and OOMs before it transcribes a word. silero is
+    # cheap enough to coexist, at the cost of sometimes deciding that the back
+    # half of a sermon is not speech.
+    #
+    # transcribe.py detects that by length. Where it is intermittent a retry
+    # clears it; where it is systematic for one recording no batch size ever
+    # will, so the last attempt passes --vad pyannote here and drops the compute
+    # type to make room for it.
     model = whisperx.load_model(
-        "large-v3", device, compute_type=compute_type, language="pt", vad_method="silero"
+        "large-v3", device, compute_type=compute_type, language="pt", vad_method=vad
     )
     result = model.transcribe(audio, batch_size=batch_size)
     del model
@@ -146,10 +160,19 @@ if __name__ == "__main__":
         help="force a compute type; omit to use float16 where the GPU has it "
         "and int8_float32 where it does not",
     )
+    parser.add_argument(
+        "--vad",
+        default=DEFAULT_VAD,
+        choices=["silero", "pyannote"],
+        help="voice activity detector; pyannote needs a compute type that "
+        "leaves room for its segmentation model",
+    )
     args = parser.parse_args()
 
     try:
-        transcribe(Path(args.wav), Path(args.out_dir), args.batch_size, args.compute_type)
+        transcribe(
+            Path(args.wav), Path(args.out_dir), args.batch_size, args.compute_type, args.vad
+        )
     except Exception as exc:
         print(f"Error transcribing {args.wav}: {exc}", file=sys.stderr)
         sys.exit(1)
