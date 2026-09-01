@@ -177,17 +177,51 @@ def pending(raw_paths: list[pathlib.Path], have: set[str]) -> list[pathlib.Path]
     return [p for p in raw_paths if (m := config.STEM_ID_RE.match(p.stem)) and m["id"] not in have]
 
 
+def display_title(stem: str, info: dict) -> str:
+    """What the church called the sermon, not what the filesystem would take.
+
+    yt-dlp sanitises its output template, so the stem has already lost any
+    character a filesystem refuses: `:` arrives as `_` and `"` as the fullwidth
+    `＂`. Reading the title back off the stem stored "Eclesiastes 6:7-12" as
+    "Eclesiastes 6_7-12" -- wrong on the page, and worse in the facet pass,
+    which parses the reference out of the title and cannot see a verse range
+    through the underscore, so four sermons recorded a chapter and no verses.
+
+    The sidecar carries the title as published, and `build_row` already reads it.
+    Falling back to the stem when it does not: a sanitised name beats an empty
+    one, and the stem is the only other record of what the sermon is called.
+    """
+    title = str(info.get("title") or "").strip()
+    if title:
+        return title
+    match = config.STEM_ID_RE.match(stem)
+    return match["title"] if match else stem
+
+
+def transcript_filename(stem: str) -> str:
+    """The `txt` column: a path, so it stays on the sanitised stem.
+
+    Deliberately not `display_title`. The corpus already holds every transcript
+    under its sanitised name, and a real title can contain `/`; this names a
+    file on disk, while `name` is what a reader sees.
+    """
+    match = config.STEM_ID_RE.match(stem)
+    return f"{match['title'] if match else stem}.txt"
+
+
 def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | None:
     match = config.STEM_ID_RE.match(raw_path.stem)
     if not match:
         print(f"  skipping {raw_path.stem}: no soundcloud id in filename", flush=True)
         return None
-    title, track_id = match["title"], match["id"]
+    track_id = match["id"]
 
     info = config.info_json_for(raw_path.stem)
     if info is None:
         print(f"  skipping {raw_path.stem}: no .info.json", flush=True)
         return None
+
+    title = display_title(raw_path.stem, info)
 
     alignment = config.ALIGNMENT_DIR / f"{raw_path.stem}.gz"
     if not alignment.exists():
@@ -195,7 +229,7 @@ def build_row(raw_path: pathlib.Path, preachers, full_names, spotify) -> dict | 
         return None
 
     # The corpus keys transcripts by title alone; the id lives in the CSV.
-    transcript_name = f"{title}.txt"
+    transcript_name = transcript_filename(raw_path.stem)
     words, sentences, sent_ratio = clean.process(
         raw_path, config.TRANSCRIPTS_DIR / transcript_name
     )

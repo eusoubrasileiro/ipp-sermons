@@ -274,3 +274,46 @@ def test_reading_the_label_only_ever_recovers_a_committed_date():
     assert recovered, "no row carries a `Data:` label; this rule guards nothing"
     assert all(got == committed for got, _, committed in recovered), recovered
     assert all(title_only != committed for _, title_only, committed in recovered), recovered
+
+
+# --- the display title comes from SoundCloud, not from the filename ----------
+#
+# yt-dlp sanitises the characters a filesystem will not take: `:` becomes `_`
+# and `"` becomes the fullwidth `＂`. Reading the title back off the stem
+# therefore stores the church's "Eclesiastes 6:7-12" as "Eclesiastes 6_7-12",
+# which is both what a visitor sees and what the scripture facet parses -- and
+# `6_7-12` does not parse, so the sermon silently loses its verse range. The
+# unsanitised title is in the sidecar the same function already reads.
+
+
+def test_the_stored_title_is_the_one_soundcloud_published(tmp_path, monkeypatch):
+    """`Eclesiastes 6:7-12` reached the corpus as `6_7-12`, and the facet pass
+    then recorded the chapter with no verses at all."""
+    stem = "Eclesiastes 6_7-12 - Satisfação da alma somente em Deus [2385197916]"
+    real = "Eclesiastes 6:7-12 - Satisfação da alma somente em Deus"
+
+    assert postprocess.display_title(stem, {"title": real}) == real
+
+
+def test_a_title_needing_no_sanitising_is_unchanged(tmp_path, monkeypatch):
+    stem = "2 Reis 22 - A lei de Deus [2380504659]"
+    real = "2 Reis 22 - A lei de Deus"
+
+    assert postprocess.display_title(stem, {"title": real}) == real
+
+
+def test_a_sidecar_without_a_title_falls_back_to_the_stem(tmp_path, monkeypatch):
+    """A sidecar is normally complete, but the stem is the only other record of
+    what the sermon is called; an empty name would be worse than a sanitised one."""
+    stem = "Eclesiastes 6_7-12 - Satisfação da alma [2385197916]"
+
+    assert postprocess.display_title(stem, {}) == "Eclesiastes 6_7-12 - Satisfação da alma"
+
+
+def test_the_transcript_filename_stays_filesystem_safe():
+    """The .txt on disk is named from the stem and must keep being: the corpus
+    already holds files under the sanitised name, and `txt` is a path, not a
+    label."""
+    stem = "Eclesiastes 6_7-12 - Satisfação da alma [2385197916]"
+
+    assert postprocess.transcript_filename(stem) == "Eclesiastes 6_7-12 - Satisfação da alma.txt"
