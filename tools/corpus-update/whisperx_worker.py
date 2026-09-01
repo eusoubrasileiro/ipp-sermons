@@ -6,13 +6,15 @@ subprocess by transcribe.py, one sermon per process, because 6 GB of VRAM cannot
 hold the ASR model and the wav2vec aligner at once; each has to be loaded and
 freed in turn anyway, so there is nothing to keep resident between sermons.
 
-This is `archive/python-gpu/sermons_ai/transcribex_worker.py`, restored. The
-box's general-purpose `transcreve.py` would have done the same job, but it pins
-`vad_method="silero"`, which the original did not: silero has been observed
-here deciding that everything after the first five minutes of a sermon is not
-speech, and because alignment then succeeds on the handful of segments it did
-find, the result is a well-formed transcript of a fifth of the sermon. The
-default VAD is what produced the existing 455, so it is what this uses.
+This is `archive/python-gpu/sermons_ai/transcribex_worker.py`, restored, with
+one forced divergence: it pins `vad_method="silero"` where the original used
+pyannote's default, because pyannote's segmentation model does not fit on this
+6 GB card beside large-v3 in float16 and OOMs before transcribing a word. The
+cost is that silero has been observed deciding everything after the first few
+minutes of a sermon is not speech; alignment then succeeds on the handful of
+segments it did find, so the result is a well-formed transcript of a fifth of
+the sermon. `transcribe.py` catches exactly that by coverage and retries. The
+full reasoning sits beside the `load_model` call -- change one, change both.
 
 Failures exit non-zero and write nothing -- a partial transcript that looks
 healthy is worse than no transcript.
