@@ -1,5 +1,15 @@
 # Production compose for the Hostinger VPS (manager1).
-# Deploy path: /opt/amiticia/ipp-sermons/  -- this file plus .env, no checkout.
+# Deploy path: /opt/amiticia/ipp-sermons/deploy/ -- a CHECKOUT of this repo, with
+# .env beside this file inside deploy/ (compose resolves env_file relative to the
+# compose file, not the checkout root).
+#
+# `name:` is load-bearing. Compose derives the project name from the directory
+# holding this file and PREFIXES NAMED VOLUMES WITH IT. Without the pin, this
+# file in deploy/ would resolve `pgdata` to a brand-new, empty `deploy_pgdata`;
+# `migrate` would then apply the schema to it and the site would come up healthy,
+# green, and with all 619 sermons and 27,505 chunks gone. The live volume is
+# `ipp-sermons_pgdata`; this pin is what keeps it attached.
+name: ipp-sermons
 # Reverse proxy: shared Traefik v3 on the external `network_public`, TLS via
 # myresolver.
 #
@@ -53,7 +63,13 @@ services:
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ./sql:/sql:ro
+      # `../backend/prisma/sql`, NOT `./sql`. These migrations are committed at
+      # backend/prisma/sql/ and there has never been a deploy/sql/ in this repo —
+      # the old path only ever worked because the VPS held a hand-copied sql/
+      # next to a scp'd compose file, outside git. On a real checkout `./sql`
+      # resolves to a directory that does not exist, the `for f in /sql/*.sql`
+      # loop below gets a literal unmatched glob, and psql fails the deploy.
+      - ../backend/prisma/sql:/sql:ro
     command:
       [
         "sh",
