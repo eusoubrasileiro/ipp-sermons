@@ -317,3 +317,46 @@ def test_the_transcript_filename_stays_filesystem_safe():
     stem = "Eclesiastes 6_7-12 - Satisfação da alma [2385197916]"
 
     assert postprocess.transcript_filename(stem) == "Eclesiastes 6_7-12 - Satisfação da alma.txt"
+
+
+# --- the preacher, once the description became labelled ----------------------
+#
+# The house style the `por` rule reads ("<topic> por <Preacher>") is gone from
+# new uploads, replaced by the same labelled block that carries `Data:`. Nine
+# sermons landed with an empty artist and showed as "Desconhecido", and an empty
+# artist also drops a sermon out of preacher-facet browsing entirely.
+
+LABELLED = (
+    "Pastor: Rev. Bruno Melo\n"
+    "Data: 30-08-2026\n"
+    "Livro: Salmos\n"
+    "Assunto: A salvação do rei e dos povos"
+)
+
+
+def test_the_pastor_label_is_read():
+    assert postprocess.resolve_artist(
+        {"description": LABELLED}, PREACHERS, FULL_NAMES
+    ) == "Reverendo Bruno Melo"
+
+
+def test_the_old_por_style_still_wins_where_it_is_present():
+    """The 610 committed rows were resolved through `por`; it has to keep working."""
+    assert postprocess.resolve_artist(
+        {"description": "Romanos 8 por Bruno Melo"}, PREACHERS, FULL_NAMES
+    ) == "Reverendo Bruno Melo"
+
+
+def test_a_label_naming_several_preachers_offers_each():
+    described = {"description": "Pastor: Rev. Bruno Melo e Presb. Éder Mota\nData: 30-08-2026"}
+
+    assert postprocess.resolve_artist(described, PREACHERS, FULL_NAMES) in (
+        "Reverendo Bruno Melo",
+        "Presbítero Éder Mota",
+    )
+
+
+def test_a_label_that_matches_nobody_is_still_left_blank():
+    described = {"description": "Pastor: Alguém Que Não Existe\nData: 30-08-2026"}
+
+    assert postprocess.resolve_artist(described, PREACHERS, FULL_NAMES) is None

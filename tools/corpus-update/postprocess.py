@@ -34,6 +34,11 @@ DATE_IN_TITLE_RE = re.compile(r"(?<!\d)(\d{1,2})\D{1,3}(\d{1,2})\D{1,3}(\d{4})(?
 # this fell into once already; see resolve_date.
 DATE_LABEL_RE = re.compile(r"^[ \t]*Data:[ \t]*(\d{1,2})\D{1,3}(\d{1,2})\D{1,3}(\d{4})[ \t]*$", re.M)
 
+# The preacher's line of the same labelled block. Anchored and line-bound for the
+# reason DATE_LABEL_RE is: the word has to own its line, or "Assunto: ... pastor
+# ..." starts naming preachers out of the sermon topic.
+PASTOR_LABEL_RE = re.compile(r"^[ \t]*Pastor:[ \t]*(?P<names>.+?)[ \t]*$", re.M)
+
 
 def plausible_date(match: re.Match | None) -> datetime.date | None:
     """A `DD-MM-YYYY` match as a date, or None if it was never one.
@@ -98,6 +103,13 @@ def artist_candidates(info: dict) -> list[str]:
     <Preacher>". The old field is still tried second, for tracks that predate
     the change.
 
+    That house style is itself now history. New uploads carry the same labelled
+    block that `resolve_date` reads for `Data:`, opening with `Pastor:`, and
+    nothing here matched it -- nine sermons landed with no preacher at all and
+    showed as "Desconhecido", which also drops them out of preacher browsing.
+    The label is tried first because it is unambiguous where it appears; `por`
+    stays for the 610 rows resolved through it.
+
     A conference or a joint lesson credits several names in that tail
     ("por Pr. Bruno Melo, Seminarista Felipe Ricieri e André Cunha"), and the
     corpus has one `artist` column. Fuzzy-matching the whole run against a
@@ -108,11 +120,23 @@ def artist_candidates(info: dict) -> list[str]:
     candidates = []
 
     description = (info.get("description") or "").strip()
-    if " por " in description:
-        tail = description.rsplit(" por ", 1)[-1].splitlines()[0]
+
+    def offer(tail: str) -> None:
+        """The whole credit first, then each name in it.
+
+        A conference credits several people on one line, and the column holds
+        one; the full string fuzzy-matches nothing, so each name gets its own
+        turn after it.
+        """
         candidates.append(tail)
         names = [n.strip() for n in re.split(r",| e ", tail)]
         candidates.extend(n for n in names if n and n != tail)
+
+    if label := PASTOR_LABEL_RE.search(description):
+        offer(label["names"].strip())
+
+    if " por " in description:
+        offer(description.rsplit(" por ", 1)[-1].splitlines()[0])
 
     if info.get("artist"):
         candidates.append(info["artist"])
